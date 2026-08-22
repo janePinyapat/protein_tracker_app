@@ -13,13 +13,14 @@ from database import (
     initialize_database,
 )
 from food_tags import TAG_DISCLAIMER, TAG_HELP, build_tag_options
-from usda_api import (
+from livsmedelsverket_api import (
+    ATTRIBUTION,
     FoodLookupError,
+    fetch_food_catalog,
+    fetch_food_nutrients,
     format_food_label,
-    get_api_key,
-    is_using_demo_key,
     scale_to_portion,
-    search_foods,
+    search_catalog,
 )
 
 
@@ -43,6 +44,20 @@ EMPTY_PREFILL = {
     "fiber_grams": 0.0,
     "calories": 0.0,
 }
+
+ONE_DAY_SECONDS = 24 * 60 * 60
+
+
+@st.cache_data(ttl=ONE_DAY_SECONDS, show_spinner=False)
+def load_food_catalog():
+    """Fetch the ~2,600-item food list once per day, not once per keystroke."""
+    return fetch_food_catalog()
+
+
+@st.cache_data(ttl=ONE_DAY_SECONDS, show_spinner=False)
+def load_food_nutrients(nummer):
+    """Fetch macro values for one food, cached per food id."""
+    return fetch_food_nutrients(nummer)
 
 
 def get_date_options(food_entries):
@@ -103,18 +118,20 @@ if "lookup_results" not in st.session_state:
 st.title("Log Food")
 st.write("Record what you ate, its macros, and any labels you want to track.")
 
-with st.expander("Look up nutrition data (USDA FoodData Central)"):
+with st.expander("Look up nutrition data (Swedish Food Agency database)"):
     st.caption(
-        "Search the USDA FoodData Central database instead of typing macros by "
-        "hand. Results are per 100 g and get scaled to your portion. You can "
-        "always skip this and enter the numbers yourself."
+        "Search Livsmedelsverkets Livsmedelsdatabasen (the Swedish National "
+        "Food Agency's food composition database) instead of typing macros "
+        "by hand. No sign-up needed. Results are per 100 g and get scaled "
+        "to your portion. Food names and dishes are mostly Swedish in "
+        "origin. You can always skip this and enter the numbers yourself."
     )
 
     search_column, portion_column = st.columns([3, 1])
 
     with search_column:
         search_query = st.text_input(
-            "Search foods", placeholder="e.g. greek yogurt, lentils, salmon"
+            "Search foods", placeholder="e.g. salmon, lentils, yogurt"
         )
 
     with portion_column:
@@ -122,15 +139,17 @@ with st.expander("Look up nutrition data (USDA FoodData Central)"):
             "Portion (g)", min_value=1.0, value=100.0, step=10.0
         )
 
-    if st.button("Search FoodData Central"):
+    if st.button("Search Swedish Food Database"):
         if not search_query.strip():
             st.warning("Enter a food to search for.")
         else:
-            with st.spinner("Searching FoodData Central..."):
+            with st.spinner("Searching the food database..."):
                 try:
-                    st.session_state.lookup_results = search_foods(
-                        search_query, api_key=get_api_key(st.secrets)
-                    )
+                    catalog = load_food_catalog()
+                    matches = search_catalog(search_query, catalog)
+                    st.session_state.lookup_results = matches
+                    if not matches:
+                        st.info("No matches found. Try a different search term.")
                 except FoodLookupError as error:
                     st.session_state.lookup_results = []
                     st.error(str(error))
@@ -145,34 +164,39 @@ with st.expander("Look up nutrition data (USDA FoodData Central)"):
         chosen_label = st.selectbox("Search results", labels)
         chosen_food = results[labels.index(chosen_label)]
 
-        preview = scale_to_portion(chosen_food, portion_grams)
+        try:
+            nutrients = load_food_nutrients(chosen_food["nummer"])
+        except FoodLookupError as error:
+            nutrients = None
+            st.error(str(error))
 
-        preview_columns = st.columns(5)
-        preview_fields = [
-            ("Protein", "protein_grams", "g"),
-            ("Carbs", "carbs_grams", "g"),
-            ("Fat", "fat_grams", "g"),
-            ("Fiber", "fiber_grams", "g"),
-            ("Calories", "calories", "kcal"),
-        ]
+        if nutrients:
+            combined_food = dict(chosen_food)
+            combined_food.update(nutrients)
+            preview = scale_to_portion(combined_food, portion_grams)
 
-        for column, (label, field, unit) in zip(preview_columns, preview_fields):
-            value = preview.get(field)
-            with column:
-                st.metric(label, "—" if value is None else f"{value:.0f} {unit}")
+            preview_columns = st.columns(5)
+            preview_fields = [
+                ("Protein", "protein_grams", "g"),
+                ("Carbs", "carbs_grams", "g"),
+                ("Fat", "fat_grams", "g"),
+                ("Fiber", "fiber_grams", "g"),
+                ("Calories", "calories", "kcal"),
+            ]
 
-        st.caption(f"Values shown for a {portion_grams:.0f} g portion.")
+            for column, (label, field, unit) in zip(preview_columns, preview_fields):
+                value = preview.get(field)
+                with column:
+                    st.metric(label, "—" if value is None else f"{value:.0f} {unit}")
 
-        if st.button("Use these numbers"):
-            prefill_from_lookup(chosen_food, portion_grams)
-            st.success("Copied into the form below.")
-            st.rerun()
+            st.caption(f"Values shown for a {portion_grams:.0f} g portion.")
 
-    if is_using_demo_key(get_api_key(st.secrets)):
-        st.caption(
-            "Using the shared DEMO_KEY, which is rate limited. Set a "
-            "USDA_API_KEY environment variable to use your own free key."
-        )
+            if st.button("Use these numbers"):
+                prefill_from_lookup(combined_food, portion_grams)
+                st.success("Copied into the form below.")
+                st.rerun()
+
+    st.caption(ATTRIBUTION)
 
 prefill = st.session_state.prefill
 
