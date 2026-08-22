@@ -12,8 +12,9 @@ adapted for nutrition instead of money.
 
 - Log food entries with protein, carbs, fat, and fiber grams, plus calories,
   meal type, and protein source
-- Optionally look up a food in **USDA FoodData Central** and scale its
-  macros to your portion, instead of typing them by hand
+- Optionally look up a food in the **Swedish Food Agency's food composition
+  database** (Livsmedelsverket) and scale its macros to your portion,
+  instead of typing them by hand
 - Apply your own descriptive labels to a food (e.g. "low glycemic", "high
   fiber", "home cooked") — the app only counts and charts the labels you
   choose, it never rates or ranks a food
