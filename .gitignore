@@ -1,0 +1,6 @@
+.venv/
+__pycache__/
+*.pyc
+protein_tracker.db
+.pytest_cache/
+streamlit_log.txt
