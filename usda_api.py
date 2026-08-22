@@ -46,10 +46,12 @@ def get_api_key(secrets=None):
     if environment_key:
         return environment_key
 
-    if secrets:
+    if secrets is not None:
         try:
             secret_key = str(secrets.get("usda_api_key", "")).strip()
         except Exception:
+            # st.secrets raises (rather than just being falsy) when no
+            # secrets.toml file exists at all, so any access is guarded.
             secret_key = ""
         if secret_key:
             return secret_key

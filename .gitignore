@@ -4,3 +4,4 @@ __pycache__/
 protein_tracker.db
 .pytest_cache/
 streamlit_log.txt
+.streamlit/secrets.toml
