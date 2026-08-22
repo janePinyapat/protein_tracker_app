@@ -39,7 +39,7 @@ protein-recovery-tracker/
 │   └── set_goal.py       (protein & fiber targets)
 ├── database.py
 ├── analytics.py
-├── usda_api.py           (FoodData Central client)
+├── livsmedelsverket_api.py (Swedish Food Agency client)
 ├── food_tags.py           (shared label vocabulary)
 ├── tests/
 ├── requirements.txt
@@ -68,27 +68,24 @@ To run tests:
 python -m pytest tests
 ```
 
-## USDA FoodData Central Lookup (Optional)
+## Nutrition Lookup (Optional)
 
-The Log Food page can search [USDA FoodData
-Central](https://fdc.nal.usda.gov/) instead of you typing macros by hand.
-Nutrition numbers come from that public database rather than being
-hardcoded in this project.
+The Log Food page can search [Livsmedelsverkets
+Livsmedelsdatabasen](https://dataportal.livsmedelsverket.se/livsmedel/swagger/index.html)
+(the Swedish National Food Agency's food composition database) instead of
+you typing macros by hand. Nutrition numbers come from that public database
+rather than being hardcoded in this project.
 
-Without any setup, lookups use the shared `DEMO_KEY`, which is heavily rate
-limited (a handful of requests per hour) and fine only for a first look. To
-raise that limit, get a free key at
-[fdc.nal.usda.gov/api-key-signup.html](https://fdc.nal.usda.gov/api-key-signup.html)
-and set it as an environment variable before running the app:
+No API key or sign-up is needed — the API is free and open. Food names and
+dishes are returned in English but are mostly Swedish in origin (the
+database covers ~2,600 foods commonly eaten in Sweden), so not every food
+you search for will have a match. You can always skip the lookup and enter
+macros manually.
 
-```powershell
-$env:USDA_API_KEY = "your-key-here"
-python -m streamlit run app.py
-```
-
-Or add it to `.streamlit/secrets.toml` (already gitignored) as
-`usda_api_key = "your-key-here"`. No key is ever stored in this repository,
-and the app works fully without one — you can always enter macros manually.
+There is no server-side search endpoint, so the app fetches the full food
+list once (cached for a day) and matches your search text locally. Per
+Livsmedelsverket's terms of reuse, the app credits the source in the UI:
+"Livsmedelsverkets Livsmedelsdatabasen" (CC BY 4.0).
 
 ## Database
 
