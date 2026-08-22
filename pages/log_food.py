@@ -12,6 +12,7 @@ from database import (
     get_saved_tags,
     initialize_database,
 )
+from food_photo_ai import FoodPhotoError, analyze_food_photo, get_api_key as get_anthropic_api_key
 from food_tags import TAG_DISCLAIMER, TAG_HELP, build_tag_options
 from livsmedelsverket_api import (
     ATTRIBUTION,
@@ -107,6 +108,18 @@ def prefill_from_lookup(parsed_food, portion_grams):
     }
 
 
+def prefill_from_photo_item(item):
+    """Copy one AI-detected photo item into the entry form."""
+    st.session_state.prefill = {
+        "description": item.description,
+        "protein_grams": float(item.protein_grams or 0.0),
+        "carbs_grams": float(item.carbs_grams or 0.0),
+        "fat_grams": float(item.fat_grams or 0.0),
+        "fiber_grams": float(item.fiber_grams or 0.0),
+        "calories": float(item.calories or 0.0),
+    }
+
+
 initialize_database()
 
 if "prefill" not in st.session_state:
@@ -115,8 +128,81 @@ if "prefill" not in st.session_state:
 if "lookup_results" not in st.session_state:
     st.session_state.lookup_results = []
 
+if "photo_analysis" not in st.session_state:
+    st.session_state.photo_analysis = None
+
 st.title("Log Food")
 st.write("Record what you ate, its macros, and any labels you want to track.")
+
+with st.expander("Log food from a photo (AI-assisted)"):
+    st.caption(
+        "Take or upload a photo and Claude will try to identify the food and "
+        "estimate its macros. This is a visual guess from a general-purpose "
+        "AI model, not a lab measurement — always review the numbers below "
+        "before using them, and adjust anything that looks off."
+    )
+
+    photo_source = st.radio(
+        "Photo source", ["Take a photo", "Upload a photo"], horizontal=True
+    )
+
+    if photo_source == "Take a photo":
+        photo = st.camera_input("Take a photo of your food")
+    else:
+        photo = st.file_uploader(
+            "Upload a food photo", type=["jpg", "jpeg", "png", "webp"]
+        )
+
+    if photo is not None:
+        st.image(photo, caption="Photo to analyze", width=250)
+
+        if st.button("Analyze photo with AI"):
+            with st.spinner("Asking Claude what's in this photo..."):
+                try:
+                    st.session_state.photo_analysis = analyze_food_photo(
+                        photo.getvalue(),
+                        photo.type,
+                        api_key=get_anthropic_api_key(st.secrets),
+                    )
+                except FoodPhotoError as error:
+                    st.session_state.photo_analysis = None
+                    st.error(str(error))
+                    st.caption(
+                        "You can still enter macros manually in the form below."
+                    )
+
+    analysis = st.session_state.photo_analysis
+
+    if analysis:
+        if analysis.notes:
+            st.info(analysis.notes)
+
+        for index, item in enumerate(analysis.items):
+            with st.container(border=True):
+                st.markdown(f"**{item.description}** — {item.portion_estimate}")
+
+                item_columns = st.columns(5)
+                item_fields = [
+                    ("Protein", item.protein_grams, "g"),
+                    ("Carbs", item.carbs_grams, "g"),
+                    ("Fat", item.fat_grams, "g"),
+                    ("Fiber", item.fiber_grams, "g"),
+                    ("Calories", item.calories, "kcal"),
+                ]
+
+                for column, (label, value, unit) in zip(item_columns, item_fields):
+                    with column:
+                        st.metric(label, "—" if value is None else f"{value:.0f} {unit}")
+
+                if st.button("Use this item", key=f"use_photo_item_{index}"):
+                    prefill_from_photo_item(item)
+                    st.success("Copied into the form below.")
+                    st.rerun()
+
+    st.caption(
+        "AI estimates only — not medical, nutrition, or dietary advice. "
+        "Always double-check against the food itself."
+    )
 
 with st.expander("Look up nutrition data (Swedish Food Agency database)"):
     st.caption(

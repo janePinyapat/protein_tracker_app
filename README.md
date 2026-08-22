@@ -15,6 +15,9 @@ adapted for nutrition instead of money.
 - Optionally look up a food in the **Swedish Food Agency's food composition
   database** (Livsmedelsverket) and scale its macros to your portion,
   instead of typing them by hand
+- Optionally take or upload a photo of your food and have Claude (Anthropic's
+  AI) identify what's in it and estimate macros, which you review and edit
+  before saving — a visual guess, not a lab measurement
 - Apply your own descriptive labels to a food (e.g. "low glycemic", "high
   fiber", "home cooked") — the app only counts and charts the labels you
   choose, it never rates or ranks a food
@@ -40,6 +43,7 @@ protein-recovery-tracker/
 ├── database.py
 ├── analytics.py
 ├── livsmedelsverket_api.py (Swedish Food Agency client)
+├── food_photo_ai.py       (Claude vision food-photo client)
 ├── food_tags.py           (shared label vocabulary)
 ├── tests/
 ├── requirements.txt
@@ -86,6 +90,30 @@ There is no server-side search endpoint, so the app fetches the full food
 list once (cached for a day) and matches your search text locally. Per
 Livsmedelsverket's terms of reuse, the app credits the source in the UI:
 "Livsmedelsverkets Livsmedelsdatabasen" (CC BY 4.0).
+
+## Photo Logging (Optional, AI-Assisted)
+
+The Log Food page can also take or accept a photo of your food and send it
+to Claude (Anthropic's AI model) to identify what's shown and estimate its
+macros. This is a genuinely different kind of source from the two lookups
+above: it's a general-purpose vision model guessing from an image, not a
+measured food-composition database, so treat the numbers as a rough starting
+point — review and edit every field before saving, same as with any other
+lookup.
+
+This feature calls a paid external API and needs your own Anthropic API key:
+
+```powershell
+$env:ANTHROPIC_API_KEY = "sk-ant-your-key-here"
+python -m streamlit run app.py
+```
+
+Or add it to `.streamlit/secrets.toml` (already gitignored) as
+`anthropic_api_key = "sk-ant-your-key-here"`. Get a key at
+[console.anthropic.com](https://console.anthropic.com/). Without a key
+configured, this section shows a clear error and the rest of the app
+(including manual entry and the Swedish Food Database lookup) works exactly
+as before.
 
 ## Database
 
