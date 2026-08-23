@@ -122,6 +122,64 @@ with st.form("profile_form"):
 
 st.subheader("Your numbers")
 
+st.markdown(
+    """
+    <style>
+    .ptr-stat-card { padding: 0.15rem 0 0.5rem 0; }
+    .ptr-stat-label {
+        font-size: 0.7rem;
+        opacity: 0.65;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+        margin-bottom: 0.15rem;
+    }
+    .ptr-stat-value {
+        font-size: 1.05rem;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+        flex-wrap: wrap;
+        line-height: 1.3;
+    }
+    .ptr-stat-caption {
+        font-size: 0.7rem;
+        opacity: 0.65;
+        margin-top: 0.1rem;
+    }
+    .ptr-badge {
+        display: inline-block;
+        background: #D6336C;
+        color: #FFFFFF;
+        font-size: 0.65rem;
+        font-weight: 600;
+        padding: 0.1rem 0.5rem;
+        border-radius: 999px;
+        white-space: nowrap;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+
+def render_stat_card(column, label, value, badge=None, caption=None):
+    """Render one small stat card — label, value, optional badge and caption."""
+    badge_html = f'<span class="ptr-badge">{badge}</span>' if badge else ""
+    caption_html = f'<div class="ptr-stat-caption">{caption}</div>' if caption else ""
+    with column:
+        st.markdown(
+            f"""
+            <div class="ptr-stat-card">
+                <div class="ptr-stat-label">{label}</div>
+                <div class="ptr-stat-value">{value}{badge_html}</div>
+                {caption_html}
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+
 profile = get_user_profile()
 goals = get_protein_goals()
 
@@ -136,33 +194,65 @@ height_cm = convert_to_cm(
 bmi = calculate_bmi(weight_kg, height_cm)
 bmi_category = get_bmi_category(bmi)
 
-metric_columns = st.columns(4)
+rest_protein = None
+training_protein = None
+fiber_value = None
 
-with metric_columns[0]:
-    st.metric(
-        "Weight",
-        f"{profile['weight_value']:.0f} {profile['weight_unit']}"
-        if profile and profile["weight_value"]
-        else "Not set",
+if not goals.empty:
+    rest_row = goals[goals["day_type"] == "Rest day"]
+    training_row = goals[goals["day_type"] == "Training day"]
+    if not rest_row.empty:
+        rest_protein = rest_row.iloc[0]["daily_target_grams"]
+    if not training_row.empty:
+        training_protein = training_row.iloc[0]["daily_target_grams"]
+    fiber_value = goals.iloc[0]["fiber_target_grams"]
+
+stat_columns = st.columns(5)
+
+render_stat_card(
+    stat_columns[0],
+    "Weight",
+    f"{profile['weight_value']:.0f} {profile['weight_unit']}"
+    if profile and profile["weight_value"]
+    else "Not set",
+)
+
+render_stat_card(
+    stat_columns[1],
+    "Height",
+    f"{profile['height_value']:.0f} {profile['height_unit']}"
+    if profile and profile["height_value"]
+    else "Not set",
+)
+
+render_stat_card(
+    stat_columns[2],
+    "BMI",
+    bmi if bmi else "—",
+    badge=bmi_category if bmi else None,
+    caption=None if bmi else "Add weight & height",
+)
+
+if pd.notna(rest_protein) and pd.notna(training_protein):
+    protein_value = (
+        f"{int(rest_protein)} g"
+        if rest_protein == training_protein
+        else f"{int(rest_protein)}–{int(training_protein)} g"
     )
+    protein_caption = "Rest day – Training day"
+else:
+    protein_value = "Not set"
+    protein_caption = None
 
-with metric_columns[1]:
-    st.metric(
-        "Height",
-        f"{profile['height_value']:.0f} {profile['height_unit']}"
-        if profile and profile["height_value"]
-        else "Not set",
-    )
+render_stat_card(
+    stat_columns[3], "Protein target", protein_value, caption=protein_caption
+)
 
-with metric_columns[2]:
-    st.metric("BMI", f"{bmi} ({bmi_category})" if bmi else "Add weight & height")
-
-with metric_columns[3]:
-    fiber_value = goals.iloc[0]["fiber_target_grams"] if not goals.empty else None
-    st.metric(
-        "Fiber target",
-        f"{int(fiber_value)} g" if pd.notna(fiber_value) else "Not set",
-    )
+render_stat_card(
+    stat_columns[4],
+    "Fiber target",
+    f"{int(fiber_value)} g" if pd.notna(fiber_value) else "Not set",
+)
 
 if bmi:
     st.caption(BMI_SOURCE_NOTE)
