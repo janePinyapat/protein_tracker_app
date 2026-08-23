@@ -90,6 +90,30 @@ def create_food_tags_table():
     connection.close()
 
 
+def create_user_profile_table():
+    """Create the single-row user profile table if it does not already exist.
+
+    This app is single-user and local, so the profile is one row pinned to
+    id=1 rather than keyed by a user id.
+    """
+    connection = create_connection()
+    cursor = connection.cursor()
+
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS user_profile (
+            id INTEGER PRIMARY KEY CHECK (id = 1),
+            diet_type TEXT NOT NULL,
+            purposes TEXT NOT NULL,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )
+        """
+    )
+
+    connection.commit()
+    connection.close()
+
+
 def get_existing_columns(cursor, table_name):
     """Return the column names currently present on a table."""
     return [row[1] for row in cursor.execute(f"PRAGMA table_info({table_name})")]
@@ -125,7 +149,55 @@ def initialize_database():
     create_food_log_table()
     create_protein_goals_table()
     create_food_tags_table()
+    create_user_profile_table()
     migrate_database()
+
+
+def save_user_profile(diet_type, purposes):
+    """Save or update the single user profile row."""
+    connection = create_connection()
+    cursor = connection.cursor()
+
+    purposes_text = ", ".join(purposes) if purposes else ""
+
+    cursor.execute(
+        """
+        INSERT INTO user_profile (id, diet_type, purposes)
+        VALUES (1, ?, ?)
+        ON CONFLICT(id)
+        DO UPDATE SET
+            diet_type = excluded.diet_type,
+            purposes = excluded.purposes,
+            updated_at = CURRENT_TIMESTAMP
+        """,
+        (diet_type, purposes_text),
+    )
+
+    connection.commit()
+    connection.close()
+
+
+def get_user_profile():
+    """Read the user profile, or None if onboarding hasn't been completed."""
+    connection = create_connection()
+
+    row = connection.execute(
+        "SELECT diet_type, purposes, updated_at FROM user_profile WHERE id = 1"
+    ).fetchone()
+
+    connection.close()
+
+    if row is None:
+        return None
+
+    diet_type, purposes_text, updated_at = row
+    purposes = (
+        [purpose.strip() for purpose in purposes_text.split(",") if purpose.strip()]
+        if purposes_text
+        else []
+    )
+
+    return {"diet_type": diet_type, "purposes": purposes, "updated_at": updated_at}
 
 
 def add_food_entry(

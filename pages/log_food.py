@@ -10,6 +10,7 @@ from database import (
     delete_food_entry,
     get_all_food_entries,
     get_saved_tags,
+    get_user_profile,
     initialize_database,
 )
 from food_photo_ai import FoodPhotoError, analyze_food_photo, get_api_key as get_anthropic_api_key
@@ -23,6 +24,7 @@ from livsmedelsverket_api import (
     scale_to_portion,
     search_catalog,
 )
+from user_profile import get_priority_tags
 
 
 MEAL_TYPES = ["Breakfast", "Lunch", "Dinner", "Snack", "Post-workout"]
@@ -325,9 +327,15 @@ with st.form("log_food_form", clear_on_submit=False):
     with detail_column_two:
         log_date = st.date_input("Date", value=date.today())
 
+    profile = get_user_profile()
+    priority_tags = get_priority_tags(
+        profile["diet_type"] if profile else None,
+        profile["purposes"] if profile else None,
+    )
+
     selected_tags = st.multiselect(
         "Your labels (optional)",
-        options=build_tag_options(get_saved_tags()),
+        options=build_tag_options(get_saved_tags(), priority_tags=priority_tags),
         help=TAG_HELP,
         accept_new_options=True,
     )

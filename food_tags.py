@@ -16,9 +16,12 @@ STARTER_TAGS = [
     "Eating out",
     "Gluten",
     "High fiber",
+    "High protein",
     "Home cooked",
     "Low glycemic",
     "Plant-based",
+    "Post-workout",
+    "Pre-workout",
     "Processed",
     "Refined carbs",
     "Whole grain",
@@ -37,12 +40,23 @@ TAG_HELP = (
 )
 
 
-def build_tag_options(saved_tags=None):
-    """Combine the starter labels with any tags already saved by the user."""
+def build_tag_options(saved_tags=None, priority_tags=None):
+    """Combine the starter labels with any tags already saved by the user.
+
+    ``priority_tags`` (e.g. from the user's profile) moves matching tags to
+    the front of the list. It only reorders — every tag stays available to
+    everyone regardless of profile, and options not in ``priority_tags``
+    keep their normal alphabetical order after it.
+    """
     options = list(STARTER_TAGS)
 
     for tag in saved_tags or []:
         if tag and tag not in options:
             options.append(tag)
 
-    return sorted(options, key=str.casefold)
+    priority = [tag for tag in (priority_tags or []) if tag in options]
+    remaining = sorted(
+        (tag for tag in options if tag not in priority), key=str.casefold
+    )
+
+    return priority + remaining

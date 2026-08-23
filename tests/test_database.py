@@ -186,6 +186,37 @@ def test_save_protein_goal_updates_existing_day_type(temp_database):
     assert goals.iloc[0]["daily_target_grams"] == 110.0
 
 
+def test_get_user_profile_returns_none_before_onboarding(temp_database):
+    assert database.get_user_profile() is None
+
+
+def test_save_user_profile_round_trips(temp_database):
+    database.save_user_profile(
+        "Vegetarian", ["PCOS management", "General health tracking"]
+    )
+
+    profile = database.get_user_profile()
+
+    assert profile["diet_type"] == "Vegetarian"
+    assert profile["purposes"] == ["PCOS management", "General health tracking"]
+
+
+def test_save_user_profile_updates_the_single_row(temp_database):
+    database.save_user_profile("Omnivore", ["Other"])
+    database.save_user_profile("Vegan", ["Strength training / muscle recovery"])
+
+    profile = database.get_user_profile()
+    assert profile["diet_type"] == "Vegan"
+    assert profile["purposes"] == ["Strength training / muscle recovery"]
+
+
+def test_save_user_profile_handles_empty_purposes(temp_database):
+    database.save_user_profile("Omnivore", [])
+
+    profile = database.get_user_profile()
+    assert profile["purposes"] == []
+
+
 def test_migration_adds_macro_columns_to_legacy_database(tmp_path, monkeypatch):
     database_path = tmp_path / "legacy.db"
     create_legacy_database(database_path)
