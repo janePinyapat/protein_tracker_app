@@ -24,6 +24,23 @@ from food_tags import TAG_DISCLAIMER
 
 DAY_TYPES = ["Rest day", "Training day"]
 
+# Rose/pink chart palette, matching the app's pink theme (.streamlit/config.toml).
+PINK_PALETTE = [
+    "#D6336C",
+    "#F06595",
+    "#FF8FA3",
+    "#C2185B",
+    "#F783AC",
+    "#AD1457",
+    "#FFA8CC",
+    "#E64980",
+    "#FFC2D1",
+    "#9D174D",
+]
+
+# Deep plum, chosen to stay readable against pink bars for the goal line.
+GOAL_LINE_COLOR = "#4A1942"
+
 
 def get_targets(goals, day_type):
     """Read the protein and fiber targets saved for a day type."""
@@ -65,6 +82,7 @@ def create_macro_split_chart(macro_split):
         values="calories",
         title="Calories by Macro",
         hole=0.45,
+        color_discrete_sequence=PINK_PALETTE,
     )
     chart.update_traces(
         textinfo="label+percent",
@@ -81,6 +99,7 @@ def create_source_chart(protein_by_source):
         values="protein_grams",
         title="Protein by Source",
         hole=0.45,
+        color_discrete_sequence=PINK_PALETTE,
     )
     chart.update_traces(
         textinfo="label+percent",
@@ -98,6 +117,7 @@ def create_macros_by_meal_chart(macros_by_meal):
         color="macro",
         barmode="group",
         title="Macros by Meal",
+        color_discrete_sequence=PINK_PALETTE,
     )
     chart.update_traces(hovertemplate="%{x}<br>%{y:.0f} g<extra></extra>")
     chart.update_layout(xaxis_title=None, yaxis_title="Grams", legend_title=None)
@@ -112,6 +132,7 @@ def create_tag_chart(tag_totals, title):
         y="tag",
         orientation="h",
         title=title,
+        color_discrete_sequence=PINK_PALETTE,
     )
     chart.update_traces(hovertemplate="%{y}<br>%{x} entries<extra></extra>")
     chart.update_layout(
@@ -129,6 +150,7 @@ def create_week_protein_chart(week_frame, protein_target):
         x="day_name",
         y="protein_grams",
         title="Protein by Day",
+        color_discrete_sequence=PINK_PALETTE,
     )
     chart.update_traces(hovertemplate="%{x}<br>%{y:.0f} g<extra></extra>")
 
@@ -136,7 +158,7 @@ def create_week_protein_chart(week_frame, protein_target):
         chart.add_hline(
             y=protein_target,
             line_dash="dash",
-            line_color="#2e8b57",
+            line_color=GOAL_LINE_COLOR,
             annotation_text="Goal",
         )
 
@@ -168,6 +190,7 @@ def create_week_macro_chart(week_frame):
         color="macro",
         barmode="group",
         title="Macros by Day",
+        color_discrete_sequence=PINK_PALETTE,
     )
     chart.update_traces(hovertemplate="%{x}<br>%{y:.0f} g<extra></extra>")
     chart.update_layout(xaxis_title=None, yaxis_title="Grams", legend_title=None)
