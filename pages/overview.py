@@ -269,6 +269,20 @@ initialize_database()
 st.title("Dashboard")
 st.write("Daily and weekly summaries of what you logged.")
 
+st.markdown(
+    """
+    <style>
+    [data-testid="stMetricValue"] {
+        font-size: 1.1rem;
+    }
+    [data-testid="stMetricLabel"] {
+        font-size: 0.7rem;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
 food_entries = get_all_food_entries()
 goals = get_protein_goals()
 water_entries = get_all_water_entries()
