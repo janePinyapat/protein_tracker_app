@@ -8,20 +8,31 @@ does two things:
    never hides a tag or restricts what can be logged; every starter tag
    stays available to everyone regardless of profile.
 2. When weight or purpose changes, calculates suggested Rest day / Training
-   day protein and fiber targets (see ``nutrition_targets.py`` for the
-   guidelines and sources used) and saves them. These are starting points
-   the user can fine-tune any time on the Meal Recommendations page — not a
-   personalized medical recommendation. Re-saving the profile without
+   day protein and fiber targets, and a suggested daily water target (see
+   ``nutrition_targets.py`` for the guidelines and sources used) and saves
+   them. These are starting points the user can fine-tune any time — protein
+   and fiber on the Meal Recommendations page, water on the Log Water page —
+   not a personalized medical recommendation. Re-saving the profile without
    changing weight or purpose leaves existing targets alone, so it never
-   silently overwrites a manual edit made on the Meal Recommendations page.
+   silently overwrites a manual edit. A sleep target set on the Log Water /
+   Log Sleep page is always preserved — this app never suggests one, since
+   there's no comparable weight-based sleep guideline to calculate from.
    Height (with weight) is used only to show BMI as general context; it
-   doesn't affect the protein/fiber numbers or count as a "changed" input.
+   doesn't affect the protein/fiber/water numbers or count as a "changed"
+   input.
 """
 
-from database import get_user_profile, save_protein_goal, save_user_profile
+from database import (
+    get_user_profile,
+    get_wellness_goals,
+    save_protein_goal,
+    save_user_profile,
+    save_wellness_goals,
+)
 from nutrition_targets import (
     calculate_fiber_target,
     calculate_protein_targets,
+    calculate_water_target_ml,
     convert_to_kg,
 )
 
@@ -122,12 +133,13 @@ def save_profile_and_targets(
     from bodyweight directly in the guidelines this app cites, and BMI isn't
     a recognized input for that calculation.
 
-    Returns ``(protein_targets, fiber_target, recalculated)``.
-    ``protein_targets``/``fiber_target`` are None whenever nothing was
-    recalculated — either because the inputs didn't change, or because
-    there's still no usable weight. ``recalculated`` tells the caller
-    whether this save attempted a recalculation at all (even one that
-    produced no usable weight), so the two None cases can be told apart.
+    Returns ``(protein_targets, fiber_target, water_target_ml, recalculated)``.
+    ``protein_targets``/``fiber_target``/``water_target_ml`` are None
+    whenever nothing was recalculated — either because the inputs didn't
+    change, or because there's still no usable weight. ``recalculated``
+    tells the caller whether this save attempted a recalculation at all
+    (even one that produced no usable weight), so the two None cases can be
+    told apart.
     """
     previous_profile = get_user_profile()
     inputs_changed = calculation_inputs_changed(
@@ -139,14 +151,24 @@ def save_profile_and_targets(
     )
 
     if not inputs_changed:
-        return None, None, False
+        return None, None, None, False
 
     weight_kg = convert_to_kg(weight_value, weight_unit)
     protein_targets = calculate_protein_targets(weight_kg, purposes)
     fiber_target = calculate_fiber_target(purposes)
+    water_target_ml = calculate_water_target_ml(weight_kg)
 
     if protein_targets:
         save_protein_goal("Rest day", protein_targets["rest"], fiber_target)
         save_protein_goal("Training day", protein_targets["training"], fiber_target)
 
-    return protein_targets, fiber_target, True
+    if water_target_ml:
+        existing_wellness_goals = get_wellness_goals()
+        save_wellness_goals(
+            water_target_ml=water_target_ml,
+            sleep_target_hours=existing_wellness_goals["sleep_target_hours"]
+            if existing_wellness_goals
+            else None,
+        )
+
+    return protein_targets, fiber_target, water_target_ml, True

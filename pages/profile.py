@@ -5,6 +5,7 @@ from database import get_protein_goals, get_user_profile, get_wellness_goals
 from nutrition_targets import (
     BMI_SOURCE_NOTE,
     SOURCES_NOTE,
+    WATER_SOURCE_NOTE,
     calculate_bmi,
     convert_to_cm,
     convert_to_kg,
@@ -15,14 +16,19 @@ from wellness import format_hours, format_ml
 
 
 st.title("Profile")
+st.caption(
+    "Built for women's nutrition, hydration, and recovery — targets use "
+    "guidelines published for women wherever the source differentiates by sex."
+)
 st.write(
     "Your diet type and purpose affect which labels are suggested first "
     "when you log food — nothing is hidden. If you add your weight, the "
-    "app also suggests Rest day / Training day protein and fiber targets "
-    "for you, calculated from published nutrition guidelines (not a "
+    "app also suggests Rest day / Training day protein and fiber targets, "
+    "and a daily water target, calculated from published guidelines (not a "
     "personalized medical recommendation). Adding your height too shows "
     "your BMI as general context. Saving here updates your daily targets; "
-    "you can still fine-tune them anytime on the Meal Recommendations page."
+    "you can still fine-tune protein/fiber on the Meal Recommendations page "
+    "and water on the Log Water page."
 )
 
 profile = get_user_profile()
@@ -97,13 +103,15 @@ with st.form("profile_form"):
         if not purposes:
             st.error("Pick at least one purpose.")
         else:
-            protein_targets, fiber_target, recalculated = save_profile_and_targets(
-                diet_type,
-                purposes,
-                weight_value if weight_value > 0 else None,
-                weight_unit,
-                height_value if height_value > 0 else None,
-                height_unit,
+            protein_targets, fiber_target, water_target_ml, recalculated = (
+                save_profile_and_targets(
+                    diet_type,
+                    purposes,
+                    weight_value if weight_value > 0 else None,
+                    weight_unit,
+                    height_value if height_value > 0 else None,
+                    height_unit,
+                )
             )
 
             if protein_targets:
@@ -111,18 +119,20 @@ with st.form("profile_form"):
                     f"Profile saved. Weight or purpose changed, so targets "
                     f"were recalculated — Rest day: {protein_targets['rest']} "
                     f"g protein, Training day: {protein_targets['training']} "
-                    f"g protein, {fiber_target} g fiber (both days)."
+                    f"g protein, {fiber_target} g fiber (both days), "
+                    f"{int(water_target_ml)} ml water."
                 )
             elif recalculated:
                 st.success(
                     "Profile saved. Add your weight above to also get "
-                    "suggested protein and fiber targets."
+                    "suggested protein, fiber, and water targets."
                 )
             else:
                 st.success(
                     "Profile saved. Weight and purpose are unchanged, so "
-                    "your daily targets were left as-is — edit them anytime "
-                    "on the Meal Recommendations page."
+                    "your daily targets were left as-is — edit protein/fiber "
+                    "on the Meal Recommendations page, or water/sleep on the "
+                    "Log Water / Log Sleep pages."
                 )
 
             st.rerun()
@@ -311,3 +321,4 @@ else:
     st.info("Add your weight above to get suggested protein and fiber targets.")
 
 st.caption(SOURCES_NOTE)
+st.caption(WATER_SOURCE_NOTE)

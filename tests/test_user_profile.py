@@ -56,12 +56,15 @@ def test_save_profile_and_targets_saves_profile(temp_database):
 
 
 def test_save_profile_and_targets_calculates_and_saves_protein_goals(temp_database):
-    protein_targets, fiber_target, recalculated = save_profile_and_targets(
-        "Omnivore", ["Strength training / muscle recovery"], 70.0, "kg"
+    protein_targets, fiber_target, water_target_ml, recalculated = (
+        save_profile_and_targets(
+            "Omnivore", ["Strength training / muscle recovery"], 70.0, "kg"
+        )
     )
 
     assert protein_targets == {"rest": 98, "training": 126}
     assert fiber_target == 25
+    assert water_target_ml == 2200  # 70 kg x 30 mL/kg = 2100, floored to 2200
     assert recalculated is True
 
     goals = database.get_protein_goals()
@@ -72,17 +75,46 @@ def test_save_profile_and_targets_calculates_and_saves_protein_goals(temp_databa
     assert training_goal["daily_target_grams"] == 126
     assert rest_goal["fiber_target_grams"] == 25
 
+    wellness_goals = database.get_wellness_goals()
+    assert wellness_goals["water_target_ml"] == 2200
+
+
+def test_save_profile_and_targets_calculates_water_target_above_the_floor(
+    temp_database,
+):
+    _, _, water_target_ml, _ = save_profile_and_targets(
+        "Omnivore", ["General health tracking"], 90.0, "kg"
+    )
+
+    assert water_target_ml == 2700  # 90 kg x 30 mL/kg, above the floor
+    assert database.get_wellness_goals()["water_target_ml"] == 2700
+
+
+def test_save_profile_and_targets_preserves_existing_sleep_target(temp_database):
+    save_profile_and_targets("Omnivore", ["General health tracking"], 70.0, "kg")
+    database.save_wellness_goals(water_target_ml=1500.0, sleep_target_hours=7.5)
+
+    save_profile_and_targets("Omnivore", ["General health tracking"], 75.0, "kg")
+
+    wellness_goals = database.get_wellness_goals()
+    assert wellness_goals["water_target_ml"] == 2250  # recalculated for 75 kg
+    assert wellness_goals["sleep_target_hours"] == 7.5  # untouched
+
 
 def test_save_profile_and_targets_skips_goal_calculation_without_weight(
     temp_database,
 ):
-    protein_targets, fiber_target, recalculated = save_profile_and_targets(
-        "Omnivore", ["General health tracking"], None, "kg"
+    protein_targets, fiber_target, water_target_ml, recalculated = (
+        save_profile_and_targets(
+            "Omnivore", ["General health tracking"], None, "kg"
+        )
     )
 
     assert protein_targets is None
+    assert water_target_ml is None
     assert recalculated is True  # attempted — first save, always "changed"
     assert database.get_protein_goals().empty
+    assert database.get_wellness_goals() is None
 
 
 def test_save_profile_and_targets_does_not_erase_existing_goals_when_weight_omitted(
@@ -116,19 +148,20 @@ def test_save_profile_and_targets_height_does_not_affect_protein_calculation(
     db_one = tmp_path / "one.db"
     monkeypatch.setattr(database, "DATABASE_NAME", str(db_one))
     database.initialize_database()
-    without_height, fiber_one, _ = save_profile_and_targets(
+    without_height, fiber_one, water_one, _ = save_profile_and_targets(
         "Omnivore", ["Strength training / muscle recovery"], 70.0, "kg"
     )
 
     db_two = tmp_path / "two.db"
     monkeypatch.setattr(database, "DATABASE_NAME", str(db_two))
     database.initialize_database()
-    with_height, fiber_two, _ = save_profile_and_targets(
+    with_height, fiber_two, water_two, _ = save_profile_and_targets(
         "Omnivore", ["Strength training / muscle recovery"], 70.0, "kg", 150.0, "cm"
     )
 
     assert without_height == with_height
     assert fiber_one == fiber_two
+    assert water_one == water_two
 
 
 def test_calculation_inputs_changed_true_when_no_previous_profile():
@@ -182,12 +215,15 @@ def test_save_profile_and_targets_does_not_recalculate_when_nothing_changed(
     database.save_protein_goal("Rest day", 150.0, 40.0)
     database.save_protein_goal("Training day", 200.0, 40.0)
 
-    protein_targets, fiber_target, recalculated = save_profile_and_targets(
-        "Omnivore", ["Strength training / muscle recovery"], 70.0, "kg"
+    protein_targets, fiber_target, water_target_ml, recalculated = (
+        save_profile_and_targets(
+            "Omnivore", ["Strength training / muscle recovery"], 70.0, "kg"
+        )
     )
 
     assert protein_targets is None
     assert fiber_target is None
+    assert water_target_ml is None
     assert recalculated is False
 
     goals = database.get_protein_goals()
@@ -206,7 +242,7 @@ def test_save_profile_and_targets_does_not_recalculate_for_diet_type_only_change
     )
     database.save_protein_goal("Rest day", 150.0, 40.0)
 
-    _, _, recalculated = save_profile_and_targets(
+    _, _, _, recalculated = save_profile_and_targets(
         "Vegan", ["Strength training / muscle recovery"], 70.0, "kg"
     )
 
@@ -223,7 +259,7 @@ def test_save_profile_and_targets_does_not_recalculate_for_height_only_change(
     )
     database.save_protein_goal("Rest day", 150.0, 40.0)
 
-    _, _, recalculated = save_profile_and_targets(
+    _, _, _, recalculated = save_profile_and_targets(
         "Omnivore",
         ["Strength training / muscle recovery"],
         70.0,
@@ -243,12 +279,15 @@ def test_save_profile_and_targets_recalculates_when_weight_changes(temp_database
     )
     database.save_protein_goal("Rest day", 150.0, 40.0)
 
-    protein_targets, fiber_target, recalculated = save_profile_and_targets(
-        "Omnivore", ["Strength training / muscle recovery"], 75.0, "kg"
+    protein_targets, fiber_target, water_target_ml, recalculated = (
+        save_profile_and_targets(
+            "Omnivore", ["Strength training / muscle recovery"], 75.0, "kg"
+        )
     )
 
     assert recalculated is True
     assert protein_targets == {"rest": 105, "training": 135}
+    assert water_target_ml == 2250
     goals = database.get_protein_goals()
     assert goals[goals["day_type"] == "Rest day"].iloc[0]["daily_target_grams"] == 105
 
@@ -257,11 +296,14 @@ def test_save_profile_and_targets_recalculates_when_purposes_change(temp_databas
     save_profile_and_targets("Omnivore", ["General health tracking"], 70.0, "kg")
     database.save_protein_goal("Rest day", 150.0, 40.0)
 
-    protein_targets, fiber_target, recalculated = save_profile_and_targets(
-        "Omnivore", ["Strength training / muscle recovery"], 70.0, "kg"
+    protein_targets, fiber_target, water_target_ml, recalculated = (
+        save_profile_and_targets(
+            "Omnivore", ["Strength training / muscle recovery"], 70.0, "kg"
+        )
     )
 
     assert recalculated is True
     assert protein_targets == {"rest": 98, "training": 126}
+    assert water_target_ml == 2200
     goals = database.get_protein_goals()
     assert goals[goals["day_type"] == "Rest day"].iloc[0]["daily_target_grams"] == 98

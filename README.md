@@ -1,8 +1,12 @@
 # Protein & Recovery Tracker
 
-A local web app for tracking daily macros (protein, carbs, fat, fiber) to
+Built for women's nutrition, hydration, and recovery. A local web app for
+tracking daily macros (protein, carbs, fat, fiber), water, and sleep to
 support exercise recovery or PCOS-related nutrition goals — with your own
 descriptive labels instead of the app judging what's "good" or "bad".
+Wherever a source guideline differentiates by sex (fiber, water), this app
+uses the figures published for adult women; see [Profile & Suggested
+Targets](#profile--suggested-targets) for exact sources.
 
 Built with Python, Streamlit, SQLite, pandas, and Plotly — same structure
 as the [Student Budget Tracker](../student-budget-tracker-option-2-mvp),
@@ -192,23 +196,27 @@ uses about 3 per generation).
 
 ## Water & Sleep Logging
 
-Two dedicated pages, following the same "you set your own numbers" philosophy
-as protein/fiber targets — nothing is auto-calculated.
+Two dedicated pages, following the same target philosophy as protein/fiber:
+a suggested starting point where a sourced calculation exists, always
+editable by hand.
 
 **Log Water** — tap "+250 ml" or "+500 ml" to log instantly (no form), or
 open "Log a custom amount or a different date" for any other amount in ml or
-fl oz. Today's total is shown with a progress bar toward your water target,
-if you've set one. Saved entries can be filtered by date and deleted.
+fl oz. Today's total is shown with a progress bar toward your water target.
+Adding your weight on the Profile page suggests a starting water target (see
+[Profile & Suggested Targets](#profile--suggested-targets)); you can
+override it anytime in the "Set your water target" form on this page. Saved
+entries can be filtered by date and deleted.
 
 **Log Sleep** — pick a date (defaults to today) and enter hours slept, with
 an optional note. Logging the same date again updates that entry rather than
-creating a duplicate, since sleep is naturally one entry per night. Saved
-entries are listed most-recent-first and can be deleted.
+creating a duplicate, since sleep is naturally one entry per night. There is
+no comparable weight-based sleep guideline to calculate from, so the sleep
+target is always fully user-set, same as before. Saved entries are listed
+most-recent-first and can be deleted.
 
-Both pages have a "Set your target" form at the bottom — a single number
-(daily water in ml, daily sleep in hours) you set yourself, same as the
-protein/fiber targets. Both targets, plus today's/this week's water and
-sleep, appear on the Dashboard alongside your macros.
+Both targets, plus today's/this week's water and sleep, appear on the
+Dashboard alongside your macros.
 
 ## Profile & Suggested Targets
 
@@ -221,29 +229,37 @@ tracking", "Other"), and optional weight and height.
   food — nothing is ever hidden; every starter tag stays available to
   everyone regardless of profile.
 - If a weight is given, the app calculates suggested Rest day / Training day
-  protein targets and a fiber target, and saves them as your daily targets
-  immediately. When more than one purpose is selected, the higher applicable
-  protein rate is used (so, e.g., PCOS management plus strength training
-  gets the strength-training level, not a diluted average).
+  protein targets, a fiber target, and a daily water target, and saves them
+  as your targets immediately. When more than one purpose is selected, the
+  higher applicable protein rate is used (so, e.g., PCOS management plus
+  strength training gets the strength-training level, not a diluted
+  average).
 - If both weight and height are given, the page also shows your BMI (World
   Health Organization formula and category) as general context. Height
-  doesn't feed into the protein/fiber calculation — those are dosed from
-  bodyweight per the cited guidelines, and BMI isn't a recognized input for
-  that. A caption next to the BMI number notes its known limitation: it
-  doesn't distinguish muscle from fat, so it reads misleadingly for very
-  muscular or lean people.
-- The "Your numbers" panel below the form always reflects your current
-  saved weight, height, BMI, and daily targets — not just a one-time toast
-  on save.
+  doesn't feed into the protein/fiber/water calculations — those are dosed
+  from bodyweight per the cited guidelines, and BMI isn't a recognized input
+  for any of them (there is no validated clinical formula linking water
+  needs to BMI). A caption next to the BMI number notes its known
+  limitation: it doesn't distinguish muscle from fat, so it reads
+  misleadingly for very muscular or lean people, and that the WHO
+  classification is the same for all adults — it isn't sex-specific.
+- The "Your numbers" panel shows two rows: body stats (weight, height, BMI),
+  then all four targets together (protein, fiber, water, sleep) — the water
+  and sleep cards link straight to the Log Water / Log Sleep pages. The
+  panel always reflects your current saved values, not just a one-time
+  toast on save.
 
-These are **starting points from published nutrition guidelines, not a
-personalized medical recommendation** — see `nutrition_targets.py` for the
-exact sources (Dietary Reference Intakes for the general RDA and fiber AI;
-the International Society of Sports Nutrition's position stand for the
-exercise range). You can fine-tune the resulting numbers anytime on the
-Meal Recommendations page, and the app says as much in the UI. For targets
-tailored to your individual situation, talk to a registered dietitian or
-your doctor.
+These are **starting points from published guidelines, not a personalized
+medical recommendation** — see `nutrition_targets.py` for the exact sources
+(Dietary Reference Intakes for the general protein RDA and the fiber
+Adequate Intake for adult women; the International Society of Sports
+Nutrition's position stand for the exercise range; the water target is body
+weight scaled at 30 mL/kg/day — a commonly used clinical estimate — floored
+at the beverage portion of the Dietary Reference Intake Adequate Intake for
+adult women). Protein and fiber targets can be fine-tuned on the Meal
+Recommendations page, water on the Log Water page, and the app says as much
+in the UI. For targets tailored to your individual situation, talk to a
+registered dietitian or your doctor.
 
 ## Database
 

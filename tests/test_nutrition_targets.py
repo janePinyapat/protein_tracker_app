@@ -1,7 +1,9 @@
 from nutrition_targets import (
+    WOMEN_FLUID_AI_FLOOR_ML,
     calculate_bmi,
     calculate_fiber_target,
     calculate_protein_targets,
+    calculate_water_target_ml,
     convert_to_cm,
     convert_to_kg,
     get_bmi_category,
@@ -133,3 +135,19 @@ def test_get_bmi_category_obese_including_boundary():
 
 def test_get_bmi_category_handles_none():
     assert get_bmi_category(None) is None
+
+
+def test_calculate_water_target_ml_scales_with_weight():
+    # 80 kg x 30 mL/kg = 2400 ml, above the women's AI floor
+    assert calculate_water_target_ml(80.0) == 2400
+
+
+def test_calculate_water_target_ml_floors_at_womens_ai_for_light_weight():
+    # 50 kg x 30 mL/kg = 1500 ml, below the floor, so the floor wins
+    assert calculate_water_target_ml(50.0) == WOMEN_FLUID_AI_FLOOR_ML
+
+
+def test_calculate_water_target_ml_returns_none_without_weight():
+    assert calculate_water_target_ml(None) is None
+    assert calculate_water_target_ml(0) is None
+    assert calculate_water_target_ml(-5) is None

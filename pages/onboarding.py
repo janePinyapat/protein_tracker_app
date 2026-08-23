@@ -1,18 +1,22 @@
 import streamlit as st
 
-from nutrition_targets import SOURCES_NOTE
+from nutrition_targets import SOURCES_NOTE, WATER_SOURCE_NOTE
 from user_profile import DIET_TYPES, PURPOSES, save_profile_and_targets
 
 
 st.title("Welcome")
+st.caption(
+    "Built for women's nutrition, hydration, and recovery — targets use "
+    "guidelines published for women wherever the source differentiates by sex."
+)
 st.write(
     "Before you start logging, tell us a bit about yourself. Diet type and "
     "purpose only change which labels are suggested first when you tag a "
     "food — every label stays available to everyone. If you add your "
     "weight, the app also suggests Rest day / Training day protein and "
-    "fiber targets for you, calculated from published nutrition guidelines "
-    "— not a personalized medical recommendation. Adding height too shows "
-    "your BMI as general context. Nothing here rates your food or "
+    "fiber targets, and a daily water target, calculated from published "
+    "guidelines — not a personalized medical recommendation. Adding height "
+    "too shows your BMI as general context. Nothing here rates your food or "
     "diagnoses anything, and you can change all of it later."
 )
 
@@ -59,13 +63,15 @@ with st.form("onboarding_form"):
         if not purposes:
             st.error("Pick at least one purpose to continue.")
         else:
-            protein_targets, fiber_target, _recalculated = save_profile_and_targets(
-                diet_type,
-                purposes,
-                weight_value if weight_value > 0 else None,
-                weight_unit,
-                height_value if height_value > 0 else None,
-                height_unit,
+            protein_targets, fiber_target, water_target_ml, _recalculated = (
+                save_profile_and_targets(
+                    diet_type,
+                    purposes,
+                    weight_value if weight_value > 0 else None,
+                    weight_unit,
+                    height_value if height_value > 0 else None,
+                    height_unit,
+                )
             )
 
             if protein_targets:
@@ -73,8 +79,9 @@ with st.form("onboarding_form"):
                     f"Saved! Suggested targets — Rest day: "
                     f"{protein_targets['rest']} g protein, Training day: "
                     f"{protein_targets['training']} g protein, "
-                    f"{fiber_target} g fiber (both days). Taking you to "
-                    f"your dashboard..."
+                    f"{fiber_target} g fiber (both days), "
+                    f"{int(water_target_ml)} ml water. Taking you to your "
+                    f"dashboard..."
                 )
             else:
                 st.success("Saved! Taking you to your dashboard...")
@@ -82,4 +89,5 @@ with st.form("onboarding_form"):
             st.rerun()
 
 st.caption(SOURCES_NOTE)
+st.caption(WATER_SOURCE_NOTE)
 st.caption("You can change any of this anytime from the Profile page in the sidebar.")

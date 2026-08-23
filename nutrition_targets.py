@@ -1,9 +1,15 @@
-"""Suggested protein and fiber daily targets from published nutrition guidelines.
+"""Suggested protein, fiber, and water daily targets from published guidelines.
 
 These are population-level starting points, not a personalized clinical
 prescription. They're calculated from body weight and the purpose(s) chosen
-on the Profile page, then saved as the Rest day / Training day targets — the
-user can always fine-tune them afterward on the Meal Recommendations page.
+on the Profile page, then saved as the Rest day / Training day (and water)
+targets — the user can always fine-tune them afterward.
+
+This app is built for women's nutrition, hydration, and recovery tracking.
+Where the source guidelines differentiate by sex — fiber and water Adequate
+Intakes — the figures published for adult women are used. The protein RDA
+and the ISSN exercise range below are not sex-specific in the source
+material and are used here as published, applying to everyone.
 
 Sources used:
 
@@ -30,10 +36,26 @@ Sources used:
   nutrition education for blood-sugar regulation, so that purpose uses 30 g.
 - BMI: calculated as weight (kg) / height (m)^2, and categorized using the
   World Health Organization's standard adult BMI classification (Underweight
-  < 18.5, Normal weight 18.5-24.9, Overweight 25-29.9, Obese >= 30). BMI is a
+  < 18.5, Normal weight 18.5-24.9, Overweight 25-29.9, Obese >= 30). This
+  classification is the same for all adults — the WHO does not publish a
+  separate scale for women, so none is applied here. BMI is a
   population-level screening measure — it does not account for muscle mass,
   bone density, or fat distribution, so it can be misleading for very
   muscular or very lean individuals. It's shown for general context only.
+  There is no validated clinical formula that derives daily water needs
+  from BMI, so the water target below is calculated from body weight
+  instead, the same way protein and fiber already are.
+- Water: 30 mL per kg of body weight per day is a commonly used clinical
+  estimate for adult daily fluid needs, within the 25-35 mL/kg/day range
+  used in dietetic and clinical practice (e.g. NICE guidance on maintenance
+  fluid therapy in adults). The suggestion is floored at approximately
+  2.2 L/day — the beverage portion of the National Academies' (Institute of
+  Medicine) Dietary Reference Intake Adequate Intake for total water in
+  adult women, 2.7 L/day total, of which roughly 80% typically comes from
+  beverages ("Dietary Reference Intakes for Water, Potassium, Sodium,
+  Chloride, and Sulfate", National Academies Press, 2005) — so the estimate
+  never drops below the published population baseline for women at a lower
+  body weight.
 
 None of this is medical advice. Anyone with a health condition, or who wants
 targets tailored to their individual situation, should talk to a registered
@@ -77,11 +99,30 @@ SOURCES_NOTE = (
 
 BMI_SOURCE_NOTE = (
     "BMI uses the World Health Organization's standard adult classification "
-    "(weight in kg divided by height in m, squared). It's a general "
-    "population screening measure, not a diagnosis — it doesn't account for "
-    "muscle mass, bone density, or where the body carries weight, so it can "
-    "read misleadingly high for muscular or very active people. Shown for "
-    "general context only."
+    "(weight in kg divided by height in m, squared) — the same scale for "
+    "everyone, since the WHO doesn't publish a separate one for women. It's "
+    "a general population screening measure, not a diagnosis — it doesn't "
+    "account for muscle mass, bone density, or where the body carries "
+    "weight, so it can read misleadingly high for muscular or very active "
+    "people. Shown for general context only."
+)
+
+WATER_ML_PER_KG_DAY = 30
+WOMEN_FLUID_AI_FLOOR_ML = 2200
+
+WATER_SOURCE_NOTE = (
+    "Suggested starting point, not medical advice: 30 mL per kg of body "
+    "weight per day, a commonly used clinical estimate for adult fluid "
+    "needs (within the 25-35 mL/kg/day range used in dietetic practice, "
+    "e.g. NICE guidance on maintenance fluid therapy), floored at "
+    "approximately 2.2 L/day — the beverage portion of the National "
+    "Academies' Adequate Intake for total water in adult women (2.7 L/day "
+    "total; Institute of Medicine, 2005). There is no validated clinical "
+    "formula linking water needs to BMI, so this is calculated from body "
+    "weight instead, the same way protein and fiber are. Talk to a "
+    "registered dietitian or your doctor for targets tailored to you, "
+    "especially with a heart, kidney, or other condition that affects "
+    "fluid needs."
 )
 
 BMI_CATEGORIES = [
@@ -157,6 +198,19 @@ def calculate_bmi(weight_kg, height_cm):
 
     height_m = height_cm / 100
     return round(weight_kg / (height_m**2), 1)
+
+
+def calculate_water_target_ml(weight_kg):
+    """Suggested daily water target, in ml, from body weight.
+
+    30 mL/kg/day, floored at the beverage portion of the NASEM Adequate
+    Intake for adult women (~2200 ml) so the suggestion never drops below
+    the published population baseline at a lower body weight.
+    """
+    if weight_kg is None or weight_kg <= 0:
+        return None
+
+    return max(round(weight_kg * WATER_ML_PER_KG_DAY), WOMEN_FLUID_AI_FLOOR_ML)
 
 
 def get_bmi_category(bmi):
