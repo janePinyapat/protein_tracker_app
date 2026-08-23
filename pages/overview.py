@@ -73,9 +73,10 @@ def get_targets(goals, day_type):
     return protein_target, fiber_target
 
 
-def show_macro_metrics(totals):
-    """Show one metric per macro plus calories."""
-    columns = st.columns(5)
+def show_macro_metrics(totals, extra_metrics=None):
+    """Show one metric per macro plus calories, and any extra metrics
+    (e.g. water, sleep) continuing in the same row — no separate section."""
+    extra_metrics = extra_metrics or []
     fields = [
         ("Protein", "protein_grams", format_grams),
         ("Carbs", "carbs_grams", format_grams),
@@ -83,10 +84,15 @@ def show_macro_metrics(totals):
         ("Fiber", "fiber_grams", format_grams),
         ("Calories", "calories", format_calories),
     ]
+    columns = st.columns(len(fields) + len(extra_metrics))
 
     for column, (label, key, formatter) in zip(columns, fields):
         with column:
             st.metric(label, formatter(totals[key]))
+
+    for column, (label, value) in zip(columns[len(fields):], extra_metrics):
+        with column:
+            st.metric(label, value)
 
 
 def create_macro_split_chart(macro_split):
@@ -300,7 +306,25 @@ with daily_tab:
         calculate_total_protein(todays_entries), protein_target
     )
 
-    show_macro_metrics(totals)
+    todays_water = water_entries[water_entries["log_date"] == selected_date.isoformat()]
+    todays_water_total = calculate_water_total(todays_water)
+    todays_sleep = sleep_entries[sleep_entries["log_date"] == selected_date.isoformat()]
+    todays_sleep_hours = (
+        float(todays_sleep.iloc[0]["hours_slept"]) if not todays_sleep.empty else None
+    )
+
+    show_macro_metrics(
+        totals,
+        extra_metrics=[
+            ("Water", format_ml(todays_water_total)),
+            (
+                "Sleep",
+                format_hours(todays_sleep_hours)
+                if todays_sleep_hours is not None
+                else "Not logged",
+            ),
+        ],
+    )
 
     if protein_target <= 0:
         st.info("Set a protein goal on the Meal Recommendations page to see progress.")
@@ -323,33 +347,23 @@ with daily_tab:
             ),
         )
 
-    st.subheader("Water & Sleep")
+    if water_target_ml > 0:
+        st.progress(
+            min(todays_water_total / water_target_ml, 1.0),
+            text=(
+                f"Water: {format_ml(todays_water_total)} of "
+                f"{format_ml(water_target_ml)}"
+            ),
+        )
 
-    todays_water = water_entries[water_entries["log_date"] == selected_date.isoformat()]
-    todays_water_total = calculate_water_total(todays_water)
-    todays_sleep = sleep_entries[sleep_entries["log_date"] == selected_date.isoformat()]
-
-    water_column, sleep_column = st.columns(2)
-
-    with water_column:
-        st.metric("Water", format_ml(todays_water_total))
-        if water_target_ml > 0:
-            st.progress(
-                min(todays_water_total / water_target_ml, 1.0),
-                text=f"{format_ml(todays_water_total)} of {format_ml(water_target_ml)}",
-            )
-
-    with sleep_column:
-        if not todays_sleep.empty:
-            hours_slept = float(todays_sleep.iloc[0]["hours_slept"])
-            st.metric("Sleep", format_hours(hours_slept))
-            if sleep_target_hours > 0:
-                st.progress(
-                    min(hours_slept / sleep_target_hours, 1.0),
-                    text=f"{format_hours(hours_slept)} of {format_hours(sleep_target_hours)}",
-                )
-        else:
-            st.metric("Sleep", "Not logged")
+    if sleep_target_hours > 0 and todays_sleep_hours is not None:
+        st.progress(
+            min(todays_sleep_hours / sleep_target_hours, 1.0),
+            text=(
+                f"Sleep: {format_hours(todays_sleep_hours)} of "
+                f"{format_hours(sleep_target_hours)}"
+            ),
+        )
 
     if todays_entries.empty:
         st.info("No food logged for this date yet.")
@@ -414,7 +428,10 @@ with weekly_tab:
     week_daily_totals = calculate_daily_macro_trend(week_entries)
     days_logged = len(week_daily_totals)
 
-    if days_logged == 0:
+    water_summary = summarize_week_water(water_entries, week_start, week_end, water_target_ml)
+    sleep_summary = summarize_week_sleep(sleep_entries, week_start, week_end, sleep_target_hours)
+
+    if days_logged == 0 and water_summary["days_logged"] == 0 and sleep_summary["nights_logged"] == 0:
         st.info("Nothing logged during this week yet.")
     else:
         days_meeting_goal = 0
@@ -429,7 +446,9 @@ with weekly_tab:
             st.metric("Days logged", f"{days_logged} of 7")
 
         with summary_column_two:
-            average_protein = week_totals["protein_grams"] / days_logged
+            average_protein = (
+                week_totals["protein_grams"] / days_logged if days_logged else 0.0
+            )
             st.metric("Average protein per logged day", format_grams(average_protein))
 
         with summary_column_three:
@@ -439,92 +458,76 @@ with weekly_tab:
                 st.metric("Days at or above goal", "No goal set")
 
         st.subheader("Week totals")
-        show_macro_metrics(week_totals)
+        show_macro_metrics(
+            week_totals,
+            extra_metrics=[
+                (
+                    "Water",
+                    format_ml(water_summary["total_ml"])
+                    if water_summary["days_logged"]
+                    else "Not logged",
+                ),
+                (
+                    "Sleep",
+                    format_hours(sleep_summary["total_hours"])
+                    if sleep_summary["nights_logged"]
+                    else "Not logged",
+                ),
+            ],
+        )
 
         st.subheader("Daily averages (across logged days)")
         average_totals = {
-            key: value / days_logged for key, value in week_totals.items()
+            key: (value / days_logged if days_logged else 0.0)
+            for key, value in week_totals.items()
         }
-        show_macro_metrics(average_totals)
+        show_macro_metrics(
+            average_totals,
+            extra_metrics=[
+                (
+                    "Water",
+                    format_ml(water_summary["average_ml"])
+                    if water_summary["days_logged"]
+                    else "Not logged",
+                ),
+                (
+                    "Sleep",
+                    format_hours(sleep_summary["average_hours"])
+                    if sleep_summary["nights_logged"]
+                    else "Not logged",
+                ),
+            ],
+        )
 
-        if week_fiber_target > 0:
+        if week_fiber_target > 0 and days_logged:
             average_fiber = week_totals["fiber_grams"] / days_logged
             st.caption(
                 f"Average fiber is {format_grams(average_fiber)} against a "
                 f"{format_grams(week_fiber_target)} daily target."
             )
 
-        week_frame = build_full_week_frame(week_daily_totals, week_start)
+        if days_logged:
+            week_frame = build_full_week_frame(week_daily_totals, week_start)
 
-        st.plotly_chart(
-            create_week_protein_chart(week_frame, week_protein_target),
-            use_container_width=True,
-        )
-        st.plotly_chart(
-            create_week_macro_chart(week_frame), use_container_width=True
-        )
-
-        week_tag_totals = calculate_tag_totals(week_entries)
-        if week_tag_totals.empty:
-            st.caption("No labels applied to this week's entries yet.")
-        else:
             st.plotly_chart(
-                create_tag_chart(week_tag_totals, "Your Labels This Week"),
+                create_week_protein_chart(week_frame, week_protein_target),
                 use_container_width=True,
             )
-
-            st.dataframe(
-                week_tag_totals,
-                use_container_width=True,
-                hide_index=True,
-                column_config={
-                    "tag": "Label",
-                    "entries": st.column_config.NumberColumn("Entries", format="%d"),
-                    "protein_grams": st.column_config.NumberColumn(
-                        "Protein (g)", format="%.0f"
-                    ),
-                    "carbs_grams": st.column_config.NumberColumn(
-                        "Carbs (g)", format="%.0f"
-                    ),
-                    "fat_grams": st.column_config.NumberColumn("Fat (g)", format="%.0f"),
-                    "fiber_grams": st.column_config.NumberColumn(
-                        "Fiber (g)", format="%.0f"
-                    ),
-                },
+            st.plotly_chart(
+                create_week_macro_chart(week_frame), use_container_width=True
             )
 
-    st.subheader("Water & Sleep")
+        wellness_chart_column_one, wellness_chart_column_two = st.columns(2)
 
-    water_summary = summarize_week_water(water_entries, week_start, week_end, water_target_ml)
-    sleep_summary = summarize_week_sleep(sleep_entries, week_start, week_end, sleep_target_hours)
+        with wellness_chart_column_one:
+            daily_water = water_summary["daily_totals"]
+            if water_summary["days_logged"] and not daily_water.empty:
+                st.plotly_chart(
+                    create_week_water_chart(daily_water, water_target_ml),
+                    use_container_width=True,
+                )
 
-    if water_summary["days_logged"] == 0 and sleep_summary["nights_logged"] == 0:
-        st.info("No water or sleep logged during this week yet.")
-    else:
-        wellness_column_one, wellness_column_two = st.columns(2)
-
-        with wellness_column_one:
-            st.metric(
-                "Average water per logged day",
-                format_ml(water_summary["average_ml"])
-                if water_summary["days_logged"]
-                else "Not logged",
-            )
-            if water_summary["days_logged"]:
-                daily_water = water_summary["daily_totals"]
-                if not daily_water.empty:
-                    st.plotly_chart(
-                        create_week_water_chart(daily_water, water_target_ml),
-                        use_container_width=True,
-                    )
-
-        with wellness_column_two:
-            st.metric(
-                "Average sleep per logged night",
-                format_hours(sleep_summary["average_hours"])
-                if sleep_summary["nights_logged"]
-                else "Not logged",
-            )
+        with wellness_chart_column_two:
             if sleep_summary["nights_logged"]:
                 week_sleep_entries = filter_entries_by_date_range(
                     sleep_entries, week_start, week_end
@@ -532,6 +535,38 @@ with weekly_tab:
                 st.plotly_chart(
                     create_week_sleep_chart(week_sleep_entries, sleep_target_hours),
                     use_container_width=True,
+                )
+
+        if days_logged:
+            week_tag_totals = calculate_tag_totals(week_entries)
+            if week_tag_totals.empty:
+                st.caption("No labels applied to this week's entries yet.")
+            else:
+                st.plotly_chart(
+                    create_tag_chart(week_tag_totals, "Your Labels This Week"),
+                    use_container_width=True,
+                )
+
+                st.dataframe(
+                    week_tag_totals,
+                    use_container_width=True,
+                    hide_index=True,
+                    column_config={
+                        "tag": "Label",
+                        "entries": st.column_config.NumberColumn("Entries", format="%d"),
+                        "protein_grams": st.column_config.NumberColumn(
+                            "Protein (g)", format="%.0f"
+                        ),
+                        "carbs_grams": st.column_config.NumberColumn(
+                            "Carbs (g)", format="%.0f"
+                        ),
+                        "fat_grams": st.column_config.NumberColumn(
+                            "Fat (g)", format="%.0f"
+                        ),
+                        "fiber_grams": st.column_config.NumberColumn(
+                            "Fiber (g)", format="%.0f"
+                        ),
+                    },
                 )
 
 st.caption(TAG_DISCLAIMER)
