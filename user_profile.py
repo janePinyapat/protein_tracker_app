@@ -1,12 +1,26 @@
-"""Vocabulary and tag-personalization rules for the user's profile.
+"""Vocabulary and behavior driven by the user's profile.
 
-The profile (diet type + purpose) is captured once during onboarding and can
-be edited any time from the Profile page. It is used for exactly one thing:
-reordering which tag suggestions appear first when logging food. It never
-hides a tag, restricts what can be logged, or changes a macro/goal
-calculation — every starter tag stays available to everyone regardless of
-profile.
+The profile (diet type, purpose, and optional weight) is captured once
+during onboarding and can be edited any time from the Profile page. It does
+two things:
+
+1. Reorders which tag suggestions appear first when logging food — this
+   never hides a tag or restricts what can be logged; every starter tag
+   stays available to everyone regardless of profile.
+2. When a weight is given, calculates suggested Rest day / Training day
+   protein and fiber targets (see ``nutrition_targets.py`` for the
+   guidelines and sources used) and saves them. These are starting points
+   the user can fine-tune any time on the Set Daily Targets page — not a
+   personalized medical recommendation.
 """
+
+from database import save_protein_goal, save_user_profile
+from nutrition_targets import (
+    calculate_fiber_target,
+    calculate_protein_targets,
+    convert_to_kg,
+)
+
 
 DIET_TYPES = [
     "Omnivore",
@@ -60,3 +74,24 @@ def get_priority_tags(diet_type, purposes):
                 priority.append(tag)
 
     return priority
+
+
+def save_profile_and_targets(diet_type, purposes, weight_value=None, weight_unit=None):
+    """Save the profile, and recalculate Rest day / Training day targets from it.
+
+    Returns ``(protein_targets, fiber_target)``. ``protein_targets`` is None
+    when no usable weight was given, in which case any previously saved
+    protein/fiber targets are left untouched — this only ever recalculates
+    when it has a weight to calculate from.
+    """
+    save_user_profile(diet_type, purposes, weight_value, weight_unit)
+
+    weight_kg = convert_to_kg(weight_value, weight_unit)
+    protein_targets = calculate_protein_targets(weight_kg, purposes)
+    fiber_target = calculate_fiber_target(purposes)
+
+    if protein_targets:
+        save_protein_goal("Rest day", protein_targets["rest"], fiber_target)
+        save_protein_goal("Training day", protein_targets["training"], fiber_target)
+
+    return protein_targets, fiber_target

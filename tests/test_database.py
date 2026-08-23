@@ -6,18 +6,7 @@ Each test runs against a throwaway database file so the user's real
 
 import sqlite3
 
-import pytest
-
 import database
-
-
-@pytest.fixture()
-def temp_database(tmp_path, monkeypatch):
-    """Point the database module at an empty file for one test."""
-    database_path = tmp_path / "test_tracker.db"
-    monkeypatch.setattr(database, "DATABASE_NAME", str(database_path))
-    database.initialize_database()
-    return database_path
 
 
 def create_legacy_database(database_path):
@@ -215,6 +204,55 @@ def test_save_user_profile_handles_empty_purposes(temp_database):
 
     profile = database.get_user_profile()
     assert profile["purposes"] == []
+
+
+def test_save_user_profile_stores_weight(temp_database):
+    database.save_user_profile(
+        "Vegan", ["Strength training / muscle recovery"], 68.0, "kg"
+    )
+
+    profile = database.get_user_profile()
+    assert profile["weight_value"] == 68.0
+    assert profile["weight_unit"] == "kg"
+
+
+def test_save_user_profile_defaults_weight_to_none(temp_database):
+    database.save_user_profile("Omnivore", ["Other"])
+
+    profile = database.get_user_profile()
+    assert profile["weight_value"] is None
+    assert profile["weight_unit"] is None
+
+
+def test_migration_adds_weight_columns_to_legacy_user_profile(tmp_path, monkeypatch):
+    """A profile saved before weight tracking existed must survive the
+    migration and keep working — weight just comes back as None."""
+    database_path = tmp_path / "legacy_profile.db"
+    monkeypatch.setattr(database, "DATABASE_NAME", str(database_path))
+
+    connection = sqlite3.connect(str(database_path))
+    connection.executescript(
+        """
+        CREATE TABLE user_profile (
+            id INTEGER PRIMARY KEY CHECK (id = 1),
+            diet_type TEXT NOT NULL,
+            purposes TEXT NOT NULL,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+        INSERT INTO user_profile (id, diet_type, purposes) VALUES (1, 'Omnivore', 'Other');
+        """
+    )
+    connection.commit()
+    connection.close()
+
+    database.initialize_database()
+
+    profile = database.get_user_profile()
+    assert profile["diet_type"] == "Omnivore"
+    assert profile["weight_value"] is None
+
+    database.save_user_profile("Omnivore", ["Other"], 70.0, "kg")
+    assert database.get_user_profile()["weight_value"] == 70.0
 
 
 def test_migration_adds_macro_columns_to_legacy_database(tmp_path, monkeypatch):

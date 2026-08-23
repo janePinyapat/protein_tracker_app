@@ -1,15 +1,18 @@
 import streamlit as st
 
-from database import save_user_profile
-from user_profile import DIET_TYPES, PURPOSES
+from nutrition_targets import SOURCES_NOTE
+from user_profile import DIET_TYPES, PURPOSES, save_profile_and_targets
 
 
 st.title("Welcome")
 st.write(
-    "Before you start logging, tell us a bit about yourself. This only "
-    "changes which labels are suggested first when you tag a food — every "
-    "label stays available to everyone, and none of this is used to rate "
-    "your food or give medical advice."
+    "Before you start logging, tell us a bit about yourself. Diet type and "
+    "purpose only change which labels are suggested first when you tag a "
+    "food — every label stays available to everyone. If you add your "
+    "weight, the app also suggests Rest day / Training day protein and "
+    "fiber targets for you, calculated from published nutrition guidelines "
+    "— not a personalized medical recommendation, and nothing here rates "
+    "your food or diagnoses anything."
 )
 
 with st.form("onboarding_form"):
@@ -20,14 +23,48 @@ with st.form("onboarding_form"):
         options=PURPOSES,
     )
 
+    weight_column, unit_column = st.columns([2, 1])
+
+    with weight_column:
+        weight_value = st.number_input(
+            "Your weight (optional)",
+            min_value=0.0,
+            step=0.5,
+            help=(
+                "Used only to calculate suggested protein and fiber "
+                "targets. Leave at 0 to skip and set your own targets "
+                "later."
+            ),
+        )
+
+    with unit_column:
+        weight_unit = st.selectbox("Unit", ["kg", "lb"])
+
     submitted = st.form_submit_button("Get started")
 
     if submitted:
         if not purposes:
             st.error("Pick at least one purpose to continue.")
         else:
-            save_user_profile(diet_type, purposes)
-            st.success("Saved! Taking you to your dashboard...")
+            protein_targets, fiber_target = save_profile_and_targets(
+                diet_type,
+                purposes,
+                weight_value if weight_value > 0 else None,
+                weight_unit,
+            )
+
+            if protein_targets:
+                st.success(
+                    f"Saved! Suggested targets — Rest day: "
+                    f"{protein_targets['rest']} g protein, Training day: "
+                    f"{protein_targets['training']} g protein, "
+                    f"{fiber_target} g fiber (both days). Taking you to "
+                    f"your dashboard..."
+                )
+            else:
+                st.success("Saved! Taking you to your dashboard...")
+
             st.rerun()
 
-st.caption("You can change these anytime from the Profile page in the sidebar.")
+st.caption(SOURCES_NOTE)
+st.caption("You can change any of this anytime from the Profile page in the sidebar.")

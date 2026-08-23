@@ -1,4 +1,5 @@
-from user_profile import get_priority_tags
+import database
+from user_profile import get_priority_tags, save_profile_and_targets
 
 
 def test_get_priority_tags_promotes_diet_tags():
@@ -40,3 +41,50 @@ def test_get_priority_tags_handles_none_diet_and_purposes():
 
 def test_get_priority_tags_ignores_unrecognized_purpose_strings():
     assert get_priority_tags(None, ["Not a real purpose"]) == []
+
+
+def test_save_profile_and_targets_saves_profile(temp_database):
+    save_profile_and_targets("Vegan", ["General health tracking"], 70.0, "kg")
+
+    profile = database.get_user_profile()
+    assert profile["diet_type"] == "Vegan"
+    assert profile["weight_value"] == 70.0
+
+
+def test_save_profile_and_targets_calculates_and_saves_protein_goals(temp_database):
+    protein_targets, fiber_target = save_profile_and_targets(
+        "Omnivore", ["Strength training / muscle recovery"], 70.0, "kg"
+    )
+
+    assert protein_targets == {"rest": 98, "training": 126}
+    assert fiber_target == 25
+
+    goals = database.get_protein_goals()
+    rest_goal = goals[goals["day_type"] == "Rest day"].iloc[0]
+    training_goal = goals[goals["day_type"] == "Training day"].iloc[0]
+
+    assert rest_goal["daily_target_grams"] == 98
+    assert training_goal["daily_target_grams"] == 126
+    assert rest_goal["fiber_target_grams"] == 25
+
+
+def test_save_profile_and_targets_skips_goal_calculation_without_weight(
+    temp_database,
+):
+    protein_targets, fiber_target = save_profile_and_targets(
+        "Omnivore", ["General health tracking"], None, "kg"
+    )
+
+    assert protein_targets is None
+    assert database.get_protein_goals().empty
+
+
+def test_save_profile_and_targets_does_not_erase_existing_goals_when_weight_omitted(
+    temp_database,
+):
+    save_profile_and_targets("Omnivore", ["General health tracking"], 70.0, "kg")
+    save_profile_and_targets("Omnivore", ["General health tracking"], None, "kg")
+
+    goals = database.get_protein_goals()
+    rest_goal = goals[goals["day_type"] == "Rest day"].iloc[0]
+    assert rest_goal["daily_target_grams"] == 70

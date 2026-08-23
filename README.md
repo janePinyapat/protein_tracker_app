@@ -10,6 +10,9 @@ adapted for nutrition instead of money.
 
 ## Features
 
+- A short first-run profile (diet type, purpose, optional weight) that
+  suggests protein and fiber targets and reorders which food labels are
+  suggested first — editable anytime from the Profile page, first in the nav
 - Log food entries with protein, carbs, fat, and fiber grams, plus calories,
   meal type, and protein source
 - Optionally look up a food in the **Swedish Food Agency's food composition
@@ -37,11 +40,15 @@ adapted for nutrition instead of money.
 protein-recovery-tracker/
 ├── app.py
 ├── pages/
-│   ├── overview.py      (Daily / Weekly dashboard)
-│   ├── log_food.py       (log entries + USDA lookup)
-│   └── set_goal.py       (protein & fiber targets)
+│   ├── profile.py         (diet type, purpose, weight — first page)
+│   ├── onboarding.py       (first-run version of the profile page)
+│   ├── overview.py         (Daily / Weekly dashboard)
+│   ├── log_food.py         (log entries + food-database lookup + AI photo)
+│   └── set_goal.py         (protein & fiber targets)
 ├── database.py
 ├── analytics.py
+├── user_profile.py        (profile vocabulary + tag/target personalization)
+├── nutrition_targets.py   (protein/fiber target calculation + sources)
 ├── livsmedelsverket_api.py (Swedish Food Agency client)
 ├── food_photo_ai.py       (Claude vision food-photo client)
 ├── food_tags.py           (shared label vocabulary)
@@ -115,11 +122,35 @@ configured, this section shows a clear error and the rest of the app
 (including manual entry and the Swedish Food Database lookup) works exactly
 as before.
 
+## Profile & Suggested Targets
+
+The Profile page (first in the nav, and shown once automatically on first
+run as onboarding) asks for a diet type, one or more purposes ("PCOS
+management", "Strength training / muscle recovery", "General health
+tracking", "Other"), and an optional weight.
+
+- Diet type and purpose reorder which tags are suggested first when logging
+  food — nothing is ever hidden; every starter tag stays available to
+  everyone regardless of profile.
+- If a weight is given, the app calculates suggested Rest day / Training day
+  protein targets and a fiber target, and saves them as your daily targets
+  immediately. When more than one purpose is selected, the higher applicable
+  protein rate is used (so, e.g., PCOS management plus strength training
+  gets the strength-training level, not a diluted average).
+
+These are **starting points from published nutrition guidelines, not a
+personalized medical recommendation** — see `nutrition_targets.py` for the
+exact sources (Dietary Reference Intakes for the general RDA and fiber AI;
+the International Society of Sports Nutrition's position stand for the
+exercise range). You can fine-tune the resulting numbers anytime on the Set
+Daily Targets page, and the app says as much in the UI. For targets tailored
+to your individual situation, talk to a registered dietitian or your doctor.
+
 ## Database
 
 SQLite file `protein_tracker.db`, created locally, ignored by Git.
 
-Three tables:
+Four tables:
 
 - `food_log` — one row per food entry (description, protein/carbs/fat/fiber
   grams, calories, meal_type, protein_source, log_date)
@@ -127,6 +158,8 @@ Three tables:
   of your own labels
 - `protein_goals` — one row per day type (`Rest day` / `Training day`) with
   `daily_target_grams` and an optional `fiber_target_grams`
+- `user_profile` — a single row (diet type, purposes, optional weight) set
+  on the Profile page
 
 `database.migrate_database()` adds the macro and fiber-target columns to a
 database created by an earlier version of this app, without touching rows

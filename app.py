@@ -11,10 +11,10 @@ if get_user_profile() is None:
     pages = [st.Page("pages/onboarding.py", title="Welcome")]
 else:
     pages = [
+        st.Page("pages/profile.py", title="Profile"),
         st.Page("pages/overview.py", title="Dashboard"),
         st.Page("pages/log_food.py", title="Log Food"),
         st.Page("pages/set_goal.py", title="Set Daily Targets"),
-        st.Page("pages/profile.py", title="Profile"),
     ]
 
 selected_page = st.navigation(pages)

@@ -105,6 +105,8 @@ def create_user_profile_table():
             id INTEGER PRIMARY KEY CHECK (id = 1),
             diet_type TEXT NOT NULL,
             purposes TEXT NOT NULL,
+            weight_value REAL,
+            weight_unit TEXT,
             updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
         )
         """
@@ -140,6 +142,12 @@ def migrate_database():
             "ALTER TABLE protein_goals ADD COLUMN fiber_target_grams REAL"
         )
 
+    profile_columns = get_existing_columns(cursor, "user_profile")
+    if "weight_value" not in profile_columns:
+        cursor.execute("ALTER TABLE user_profile ADD COLUMN weight_value REAL")
+    if "weight_unit" not in profile_columns:
+        cursor.execute("ALTER TABLE user_profile ADD COLUMN weight_unit TEXT")
+
     connection.commit()
     connection.close()
 
@@ -153,7 +161,7 @@ def initialize_database():
     migrate_database()
 
 
-def save_user_profile(diet_type, purposes):
+def save_user_profile(diet_type, purposes, weight_value=None, weight_unit=None):
     """Save or update the single user profile row."""
     connection = create_connection()
     cursor = connection.cursor()
@@ -162,15 +170,17 @@ def save_user_profile(diet_type, purposes):
 
     cursor.execute(
         """
-        INSERT INTO user_profile (id, diet_type, purposes)
-        VALUES (1, ?, ?)
+        INSERT INTO user_profile (id, diet_type, purposes, weight_value, weight_unit)
+        VALUES (1, ?, ?, ?, ?)
         ON CONFLICT(id)
         DO UPDATE SET
             diet_type = excluded.diet_type,
             purposes = excluded.purposes,
+            weight_value = excluded.weight_value,
+            weight_unit = excluded.weight_unit,
             updated_at = CURRENT_TIMESTAMP
         """,
-        (diet_type, purposes_text),
+        (diet_type, purposes_text, weight_value, weight_unit),
     )
 
     connection.commit()
@@ -182,7 +192,10 @@ def get_user_profile():
     connection = create_connection()
 
     row = connection.execute(
-        "SELECT diet_type, purposes, updated_at FROM user_profile WHERE id = 1"
+        """
+        SELECT diet_type, purposes, weight_value, weight_unit, updated_at
+        FROM user_profile WHERE id = 1
+        """
     ).fetchone()
 
     connection.close()
@@ -190,14 +203,20 @@ def get_user_profile():
     if row is None:
         return None
 
-    diet_type, purposes_text, updated_at = row
+    diet_type, purposes_text, weight_value, weight_unit, updated_at = row
     purposes = (
         [purpose.strip() for purpose in purposes_text.split(",") if purpose.strip()]
         if purposes_text
         else []
     )
 
-    return {"diet_type": diet_type, "purposes": purposes, "updated_at": updated_at}
+    return {
+        "diet_type": diet_type,
+        "purposes": purposes,
+        "weight_value": weight_value,
+        "weight_unit": weight_unit,
+        "updated_at": updated_at,
+    }
 
 
 def add_food_entry(
