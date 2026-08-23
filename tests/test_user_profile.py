@@ -64,7 +64,7 @@ def test_save_profile_and_targets_calculates_and_saves_protein_goals(temp_databa
 
     assert protein_targets == {"rest": 98, "training": 126}
     assert fiber_target == 25
-    assert water_target_ml == 2200  # 70 kg x 30 mL/kg = 2100, floored to 2200
+    assert water_target_ml == 2100  # 70 kg x 30 mL/kg, above the floor
     assert recalculated is True
 
     goals = database.get_protein_goals()
@@ -76,7 +76,7 @@ def test_save_profile_and_targets_calculates_and_saves_protein_goals(temp_databa
     assert rest_goal["fiber_target_grams"] == 25
 
     wellness_goals = database.get_wellness_goals()
-    assert wellness_goals["water_target_ml"] == 2200
+    assert wellness_goals["water_target_ml"] == 2100
 
 
 def test_save_profile_and_targets_calculates_water_target_above_the_floor(
@@ -304,6 +304,6 @@ def test_save_profile_and_targets_recalculates_when_purposes_change(temp_databas
 
     assert recalculated is True
     assert protein_targets == {"rest": 98, "training": 126}
-    assert water_target_ml == 2200
+    assert water_target_ml == 2100
     goals = database.get_protein_goals()
     assert goals[goals["day_type"] == "Rest day"].iloc[0]["daily_target_grams"] == 98

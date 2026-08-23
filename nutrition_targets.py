@@ -49,13 +49,17 @@ Sources used:
   estimate for adult daily fluid needs, within the 25-35 mL/kg/day range
   used in dietetic and clinical practice (e.g. NICE guidance on maintenance
   fluid therapy in adults). The suggestion is floored at approximately
-  2.2 L/day — the beverage portion of the National Academies' (Institute of
-  Medicine) Dietary Reference Intake Adequate Intake for total water in
-  adult women, 2.7 L/day total, of which roughly 80% typically comes from
-  beverages ("Dietary Reference Intakes for Water, Potassium, Sodium,
-  Chloride, and Sulfate", National Academies Press, 2005) — so the estimate
-  never drops below the published population baseline for women at a lower
-  body weight.
+  1.6 L/day — roughly the beverage portion (about 80%) of the European Food
+  Safety Authority's Adequate Intake for total water in adult women, 2.0
+  L/day total ("Scientific Opinion on Dietary Reference Values for water",
+  EFSA NDA Panel, EFSA Journal, 2010). A higher Adequate Intake of 2.7 L/day
+  total (about 2.2 L from beverages) is published by the U.S./Canadian
+  National Academies ("Dietary Reference Intakes for Water, Potassium,
+  Sodium, Chloride, and Sulfate", Institute of Medicine, 2005); the lower,
+  still-sourced EFSA figure is used as the floor here so the estimate stays
+  responsive to body weight across typical body weights, rather than
+  flattening out at a higher one, while still never dropping below that
+  published population baseline for women at a very low body weight.
 
 None of this is medical advice. Anyone with a health condition, or who wants
 targets tailored to their individual situation, should talk to a registered
@@ -108,16 +112,21 @@ BMI_SOURCE_NOTE = (
 )
 
 WATER_ML_PER_KG_DAY = 30
-WOMEN_FLUID_AI_FLOOR_ML = 2200
+WOMEN_FLUID_AI_FLOOR_ML = 1600
 
 WATER_SOURCE_NOTE = (
     "Suggested starting point, not medical advice: 30 mL per kg of body "
     "weight per day, a commonly used clinical estimate for adult fluid "
     "needs (within the 25-35 mL/kg/day range used in dietetic practice, "
     "e.g. NICE guidance on maintenance fluid therapy), floored at "
-    "approximately 2.2 L/day — the beverage portion of the National "
-    "Academies' Adequate Intake for total water in adult women (2.7 L/day "
-    "total; Institute of Medicine, 2005). There is no validated clinical "
+    "approximately 1.6 L/day — roughly the beverage portion (about 80%) of "
+    "the European Food Safety Authority's Adequate Intake for total water "
+    "in adult women (2.0 L/day total; EFSA NDA Panel, 2010). A higher "
+    "Adequate Intake of 2.7 L/day total (about 2.2 L from beverages) is "
+    "published by the U.S./Canadian National Academies (Institute of "
+    "Medicine, 2005); this app uses the lower, still-sourced EFSA figure as "
+    "the floor so the weight-based estimate stays responsive across typical "
+    "body weights instead of flattening out. There is no validated clinical "
     "formula linking water needs to BMI, so this is calculated from body "
     "weight instead, the same way protein and fiber are. Talk to a "
     "registered dietitian or your doctor for targets tailored to you, "
