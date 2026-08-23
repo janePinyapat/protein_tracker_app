@@ -21,7 +21,7 @@ st.write(
     "for you, calculated from published nutrition guidelines (not a "
     "personalized medical recommendation). Adding your height too shows "
     "your BMI as general context. Saving here updates your daily targets; "
-    "you can still fine-tune them anytime on the Set Daily Targets page."
+    "you can still fine-tune them anytime on the Meal Recommendations page."
 )
 
 profile = get_user_profile()
@@ -96,7 +96,7 @@ with st.form("profile_form"):
         if not purposes:
             st.error("Pick at least one purpose.")
         else:
-            protein_targets, fiber_target = save_profile_and_targets(
+            protein_targets, fiber_target, recalculated = save_profile_and_targets(
                 diet_type,
                 purposes,
                 weight_value if weight_value > 0 else None,
@@ -107,15 +107,21 @@ with st.form("profile_form"):
 
             if protein_targets:
                 st.success(
-                    f"Profile saved. Suggested targets set — Rest day: "
-                    f"{protein_targets['rest']} g protein, Training day: "
-                    f"{protein_targets['training']} g protein, "
-                    f"{fiber_target} g fiber (both days)."
+                    f"Profile saved. Weight or purpose changed, so targets "
+                    f"were recalculated — Rest day: {protein_targets['rest']} "
+                    f"g protein, Training day: {protein_targets['training']} "
+                    f"g protein, {fiber_target} g fiber (both days)."
                 )
-            else:
+            elif recalculated:
                 st.success(
                     "Profile saved. Add your weight above to also get "
                     "suggested protein and fiber targets."
+                )
+            else:
+                st.success(
+                    "Profile saved. Weight and purpose are unchanged, so "
+                    "your daily targets were left as-is — edit them anytime "
+                    "on the Meal Recommendations page."
                 )
 
             st.rerun()

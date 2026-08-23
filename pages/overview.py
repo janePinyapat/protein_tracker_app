@@ -229,7 +229,7 @@ with daily_tab:
     show_macro_metrics(totals)
 
     if protein_target <= 0:
-        st.info("Set a protein goal on the Set Daily Targets page to see progress.")
+        st.info("Set a protein goal on the Meal Recommendations page to see progress.")
     else:
         st.progress(
             min(progress["progress_percent"] / 100, 1.0),

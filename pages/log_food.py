@@ -46,6 +46,7 @@ EMPTY_PREFILL = {
     "fat_grams": 0.0,
     "fiber_grams": 0.0,
     "calories": 0.0,
+    "meal_type": None,
 }
 
 ONE_DAY_SECONDS = 24 * 60 * 60
@@ -317,7 +318,13 @@ with st.form("log_food_form", clear_on_submit=False):
             step=10.0,
             value=prefill["calories"],
         )
-        meal_type = st.selectbox("Meal", MEAL_TYPES)
+        meal_type = st.selectbox(
+            "Meal",
+            MEAL_TYPES,
+            index=MEAL_TYPES.index(prefill["meal_type"])
+            if prefill.get("meal_type") in MEAL_TYPES
+            else 0,
+        )
 
     detail_column_one, detail_column_two = st.columns(2)
 

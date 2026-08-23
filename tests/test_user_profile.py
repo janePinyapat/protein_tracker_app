@@ -1,5 +1,9 @@
 import database
-from user_profile import get_priority_tags, save_profile_and_targets
+from user_profile import (
+    calculation_inputs_changed,
+    get_priority_tags,
+    save_profile_and_targets,
+)
 
 
 def test_get_priority_tags_promotes_diet_tags():
@@ -52,12 +56,13 @@ def test_save_profile_and_targets_saves_profile(temp_database):
 
 
 def test_save_profile_and_targets_calculates_and_saves_protein_goals(temp_database):
-    protein_targets, fiber_target = save_profile_and_targets(
+    protein_targets, fiber_target, recalculated = save_profile_and_targets(
         "Omnivore", ["Strength training / muscle recovery"], 70.0, "kg"
     )
 
     assert protein_targets == {"rest": 98, "training": 126}
     assert fiber_target == 25
+    assert recalculated is True
 
     goals = database.get_protein_goals()
     rest_goal = goals[goals["day_type"] == "Rest day"].iloc[0]
@@ -71,11 +76,12 @@ def test_save_profile_and_targets_calculates_and_saves_protein_goals(temp_databa
 def test_save_profile_and_targets_skips_goal_calculation_without_weight(
     temp_database,
 ):
-    protein_targets, fiber_target = save_profile_and_targets(
+    protein_targets, fiber_target, recalculated = save_profile_and_targets(
         "Omnivore", ["General health tracking"], None, "kg"
     )
 
     assert protein_targets is None
+    assert recalculated is True  # attempted — first save, always "changed"
     assert database.get_protein_goals().empty
 
 
@@ -101,15 +107,161 @@ def test_save_profile_and_targets_saves_height(temp_database):
 
 
 def test_save_profile_and_targets_height_does_not_affect_protein_calculation(
-    temp_database,
+    tmp_path, monkeypatch
 ):
-    """Height is for BMI display only — it must not change the protein/fiber
-    numbers, which are dosed from bodyweight per the cited guidelines."""
-    without_height, _ = save_profile_and_targets(
+    """Height is for BMI display only. Compared across two independent first
+    saves (not sequential calls) so the new change-detection behavior below
+    can't mask the result — a height-only change on a second call wouldn't
+    recalculate at all, which is covered separately."""
+    db_one = tmp_path / "one.db"
+    monkeypatch.setattr(database, "DATABASE_NAME", str(db_one))
+    database.initialize_database()
+    without_height, fiber_one, _ = save_profile_and_targets(
         "Omnivore", ["Strength training / muscle recovery"], 70.0, "kg"
     )
-    with_height, _ = save_profile_and_targets(
+
+    db_two = tmp_path / "two.db"
+    monkeypatch.setattr(database, "DATABASE_NAME", str(db_two))
+    database.initialize_database()
+    with_height, fiber_two, _ = save_profile_and_targets(
         "Omnivore", ["Strength training / muscle recovery"], 70.0, "kg", 150.0, "cm"
     )
 
     assert without_height == with_height
+    assert fiber_one == fiber_two
+
+
+def test_calculation_inputs_changed_true_when_no_previous_profile():
+    assert calculation_inputs_changed(None, ["Other"], 70.0, "kg") is True
+
+
+def test_calculation_inputs_changed_false_when_nothing_differs():
+    previous = {"purposes": ["Other"], "weight_value": 70.0, "weight_unit": "kg"}
+    assert calculation_inputs_changed(previous, ["Other"], 70.0, "kg") is False
+
+
+def test_calculation_inputs_changed_true_when_weight_differs():
+    previous = {"purposes": ["Other"], "weight_value": 70.0, "weight_unit": "kg"}
+    assert calculation_inputs_changed(previous, ["Other"], 71.0, "kg") is True
+
+
+def test_calculation_inputs_changed_true_when_weight_unit_differs():
+    previous = {"purposes": ["Other"], "weight_value": 70.0, "weight_unit": "kg"}
+    assert calculation_inputs_changed(previous, ["Other"], 70.0, "lb") is True
+
+
+def test_calculation_inputs_changed_true_when_purposes_differ():
+    previous = {"purposes": ["Other"], "weight_value": 70.0, "weight_unit": "kg"}
+    assert (
+        calculation_inputs_changed(previous, ["PCOS management"], 70.0, "kg") is True
+    )
+
+
+def test_calculation_inputs_changed_ignores_purpose_order():
+    previous = {
+        "purposes": ["PCOS management", "Other"],
+        "weight_value": 70.0,
+        "weight_unit": "kg",
+    }
+    assert (
+        calculation_inputs_changed(
+            previous, ["Other", "PCOS management"], 70.0, "kg"
+        )
+        is False
+    )
+
+
+def test_save_profile_and_targets_does_not_recalculate_when_nothing_changed(
+    temp_database,
+):
+    save_profile_and_targets(
+        "Omnivore", ["Strength training / muscle recovery"], 70.0, "kg"
+    )
+
+    # Simulate the user hand-editing targets on the Set Daily Targets page.
+    database.save_protein_goal("Rest day", 150.0, 40.0)
+    database.save_protein_goal("Training day", 200.0, 40.0)
+
+    protein_targets, fiber_target, recalculated = save_profile_and_targets(
+        "Omnivore", ["Strength training / muscle recovery"], 70.0, "kg"
+    )
+
+    assert protein_targets is None
+    assert fiber_target is None
+    assert recalculated is False
+
+    goals = database.get_protein_goals()
+    rest_goal = goals[goals["day_type"] == "Rest day"].iloc[0]
+    assert rest_goal["daily_target_grams"] == 150.0
+    assert rest_goal["fiber_target_grams"] == 40.0
+
+
+def test_save_profile_and_targets_does_not_recalculate_for_diet_type_only_change(
+    temp_database,
+):
+    """Diet type never feeds the calculation, so changing only it must not
+    trigger a recalculation either."""
+    save_profile_and_targets(
+        "Omnivore", ["Strength training / muscle recovery"], 70.0, "kg"
+    )
+    database.save_protein_goal("Rest day", 150.0, 40.0)
+
+    _, _, recalculated = save_profile_and_targets(
+        "Vegan", ["Strength training / muscle recovery"], 70.0, "kg"
+    )
+
+    assert recalculated is False
+    goals = database.get_protein_goals()
+    assert goals[goals["day_type"] == "Rest day"].iloc[0]["daily_target_grams"] == 150.0
+
+
+def test_save_profile_and_targets_does_not_recalculate_for_height_only_change(
+    temp_database,
+):
+    save_profile_and_targets(
+        "Omnivore", ["Strength training / muscle recovery"], 70.0, "kg"
+    )
+    database.save_protein_goal("Rest day", 150.0, 40.0)
+
+    _, _, recalculated = save_profile_and_targets(
+        "Omnivore",
+        ["Strength training / muscle recovery"],
+        70.0,
+        "kg",
+        180.0,
+        "cm",
+    )
+
+    assert recalculated is False
+    goals = database.get_protein_goals()
+    assert goals[goals["day_type"] == "Rest day"].iloc[0]["daily_target_grams"] == 150.0
+
+
+def test_save_profile_and_targets_recalculates_when_weight_changes(temp_database):
+    save_profile_and_targets(
+        "Omnivore", ["Strength training / muscle recovery"], 70.0, "kg"
+    )
+    database.save_protein_goal("Rest day", 150.0, 40.0)
+
+    protein_targets, fiber_target, recalculated = save_profile_and_targets(
+        "Omnivore", ["Strength training / muscle recovery"], 75.0, "kg"
+    )
+
+    assert recalculated is True
+    assert protein_targets == {"rest": 105, "training": 135}
+    goals = database.get_protein_goals()
+    assert goals[goals["day_type"] == "Rest day"].iloc[0]["daily_target_grams"] == 105
+
+
+def test_save_profile_and_targets_recalculates_when_purposes_change(temp_database):
+    save_profile_and_targets("Omnivore", ["General health tracking"], 70.0, "kg")
+    database.save_protein_goal("Rest day", 150.0, 40.0)
+
+    protein_targets, fiber_target, recalculated = save_profile_and_targets(
+        "Omnivore", ["Strength training / muscle recovery"], 70.0, "kg"
+    )
+
+    assert recalculated is True
+    assert protein_targets == {"rest": 98, "training": 126}
+    goals = database.get_protein_goals()
+    assert goals[goals["day_type"] == "Rest day"].iloc[0]["daily_target_grams"] == 98

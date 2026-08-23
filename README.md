@@ -25,7 +25,8 @@ adapted for nutrition instead of money.
   fiber", "home cooked") — the app only counts and charts the labels you
   choose, it never rates or ranks a food
 - Set separate daily protein and fiber targets for rest days and training
-  days
+  days, and get **breakfast/lunch/dinner recipe ideas from Spoonacular**
+  each day, sized to whatever's left of today's target
 - **Daily dashboard**: macro totals, calorie-by-macro split, protein by
   source, macros by meal, and your labels for the day
 - **Weekly dashboard**: days logged, average macros per logged day, days
@@ -40,17 +41,18 @@ adapted for nutrition instead of money.
 protein-recovery-tracker/
 ├── app.py
 ├── pages/
-│   ├── profile.py         (diet type, purpose, weight — first page)
-│   ├── onboarding.py       (first-run version of the profile page)
-│   ├── overview.py         (Daily / Weekly dashboard)
-│   ├── log_food.py         (log entries + food-database lookup + AI photo)
-│   └── set_goal.py         (protein & fiber targets)
+│   ├── profile.py           (diet type, purpose, weight/height — first page)
+│   ├── onboarding.py        (first-run version of the profile page)
+│   ├── meal_recommendations.py (meal ideas + protein/fiber target form)
+│   ├── overview.py          (Daily / Weekly dashboard)
+│   └── log_food.py          (log entries + food-database lookup + AI photo)
 ├── database.py
 ├── analytics.py
 ├── user_profile.py        (profile vocabulary + tag/target personalization)
 ├── nutrition_targets.py   (protein/fiber target calculation + sources)
 ├── livsmedelsverket_api.py (Swedish Food Agency client)
 ├── food_photo_ai.py       (Claude vision food-photo client)
+├── meal_recommendation_api.py (Spoonacular recipe-search client)
 ├── food_tags.py           (shared label vocabulary)
 ├── tests/
 ├── requirements.txt
@@ -122,6 +124,62 @@ configured, this section shows a clear error and the rest of the app
 (including manual entry and the Swedish Food Database lookup) works exactly
 as before.
 
+## Meal Recommendations
+
+The **Meal Recommendations** page (second in the nav) searches
+[Spoonacular's](https://spoonacular.com/food-api) recipe database for one
+real breakfast, lunch, and dinner recipe each, sized to whatever protein and
+fiber is still left of today's target once you subtract what you've already
+logged. Each card shows the source recipe (with a link), a "ready in / serves"
+caption, and estimated macros — and a "Log this meal" button jumps straight
+to Log Food with that meal's macros and meal slot pre-filled, ready to
+review and save.
+
+No AI model is involved here — it's a direct nutrient-range search
+(`complexSearch` filtered by recipe type and protein/fiber) against a real
+recipe database. Needs its own free API key:
+
+```powershell
+$env:SPOONACULAR_API_KEY = "your-key-here"
+python -m streamlit run app.py
+```
+
+Or add `spoonacular_api_key = "your-key-here"` to `.streamlit/secrets.toml`
+(already gitignored). Get a free key at
+[spoonacular.com/food-api](https://spoonacular.com/food-api/console#Dashboard)
+— signup only, no payment required, ~150 free requests/day (this feature
+uses about 3 per generation).
+
+- **Respects your diet type from Profile** — Vegetarian, Vegan, and
+  Pescatarian are passed straight to Spoonacular's own `diet` filter, so
+  results are excluded by the recipe database itself rather than fetched
+  and then discarded. Omnivore and "Other / prefer not to say" apply no
+  filter. The page shows a caption naming the active filter when one applies.
+- **Avoids repeating recent recommendations** — every recipe shown is
+  logged with its Spoonacular id, and new searches page past anything
+  recommended in the last 14 days (see `REPEAT_AVOIDANCE_DAYS` in
+  `pages/meal_recommendations.py`) before falling back to a repeat only if
+  a diet/meal-type combination's candidate pool is too small to avoid one —
+  and says so in the UI when that happens, rather than silently repeating.
+- **Today's remaining protein/fiber is split** 25% / 35% / 40% across
+  breakfast / lunch / dinner — a simple fixed heuristic, not personalized
+  meal-timing advice — then each meal is searched for within a window
+  around its share.
+- Spoonacular's recipe categories don't distinguish lunch from dinner (both
+  map to "main course"), so those two rely on the search window and
+  duplicate-avoidance to end up different, rather than a true category split.
+- Recommendations are generated **once per calendar date** and cached (a
+  `meal_recommendations` table, one row per date + meal type); revisiting
+  the page the same day shows the cached ideas immediately, with no new API
+  call. A "Refresh" button regenerates them on demand — useful after logging
+  food shifts your remaining target.
+- These are real recipes matched by diet and macro content, not a
+  personalized meal plan or medical/dietary advice — check the source, and
+  treat the listed macros as that recipe's own nutrition estimate.
+- If no protein target is set yet for the selected day type, this section
+  prompts you to set one first (in the "Set Daily Targets" section further
+  down the same page) rather than guessing at what to recommend.
+
 ## Profile & Suggested Targets
 
 The Profile page (first in the nav, and shown once automatically on first
@@ -152,15 +210,16 @@ These are **starting points from published nutrition guidelines, not a
 personalized medical recommendation** — see `nutrition_targets.py` for the
 exact sources (Dietary Reference Intakes for the general RDA and fiber AI;
 the International Society of Sports Nutrition's position stand for the
-exercise range). You can fine-tune the resulting numbers anytime on the Set
-Daily Targets page, and the app says as much in the UI. For targets tailored
-to your individual situation, talk to a registered dietitian or your doctor.
+exercise range). You can fine-tune the resulting numbers anytime on the
+Meal Recommendations page, and the app says as much in the UI. For targets
+tailored to your individual situation, talk to a registered dietitian or
+your doctor.
 
 ## Database
 
 SQLite file `protein_tracker.db`, created locally, ignored by Git.
 
-Four tables:
+Five tables:
 
 - `food_log` — one row per food entry (description, protein/carbs/fat/fiber
   grams, calories, meal_type, protein_source, log_date)
@@ -168,6 +227,9 @@ Four tables:
   of your own labels
 - `protein_goals` — one row per day type (`Rest day` / `Training day`) with
   `daily_target_grams` and an optional `fiber_target_grams`
+- `meal_recommendations` — one row per (date, meal type), the cached recipe
+  ideas for a day, including each recipe's Spoonacular id (used to avoid
+  recommending the same recipe again within the repeat-avoidance window)
 - `user_profile` — a single row (diet type, purposes, optional weight) set
   on the Profile page
 

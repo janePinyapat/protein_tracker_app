@@ -12,6 +12,7 @@ from analytics import (
     calculate_macros_by_meal,
     calculate_protein_by_meal,
     calculate_protein_by_source,
+    calculate_remaining_targets,
     calculate_tag_totals,
     calculate_total_protein,
     explode_tags,
@@ -301,3 +302,23 @@ def test_build_full_week_frame_handles_empty_week():
     assert len(week_frame) == 7
     assert week_frame["protein_grams"].sum() == 0.0
     assert list(week_frame["day_name"])[0] == "Mon"
+
+
+def test_calculate_remaining_targets_subtracts_logged_amounts():
+    remaining = calculate_remaining_targets(100.0, 25.0, 60.0, 10.0)
+    assert remaining == {"protein_grams": 40.0, "fiber_grams": 15.0}
+
+
+def test_calculate_remaining_targets_floors_at_zero_when_target_exceeded():
+    remaining = calculate_remaining_targets(100.0, 25.0, 150.0, 40.0)
+    assert remaining == {"protein_grams": 0.0, "fiber_grams": 0.0}
+
+
+def test_calculate_remaining_targets_handles_no_logged_food():
+    remaining = calculate_remaining_targets(100.0, 25.0, 0.0, 0.0)
+    assert remaining == {"protein_grams": 100.0, "fiber_grams": 25.0}
+
+
+def test_calculate_remaining_targets_handles_none_inputs():
+    remaining = calculate_remaining_targets(None, None, None, None)
+    assert remaining == {"protein_grams": 0.0, "fiber_grams": 0.0}

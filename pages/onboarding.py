@@ -59,7 +59,7 @@ with st.form("onboarding_form"):
         if not purposes:
             st.error("Pick at least one purpose to continue.")
         else:
-            protein_targets, fiber_target = save_profile_and_targets(
+            protein_targets, fiber_target, _recalculated = save_profile_and_targets(
                 diet_type,
                 purposes,
                 weight_value if weight_value > 0 else None,

@@ -118,6 +118,39 @@ def create_user_profile_table():
     connection.close()
 
 
+def create_meal_recommendations_table():
+    """Create the meal recommendations cache table if it does not exist.
+
+    One row per (date, meal type) — regenerating a date's recommendations
+    replaces its rows rather than appending to them.
+    """
+    connection = create_connection()
+    cursor = connection.cursor()
+
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS meal_recommendations (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            rec_date TEXT NOT NULL,
+            meal_type TEXT NOT NULL,
+            recipe_id INTEGER,
+            meal_name TEXT NOT NULL,
+            description TEXT,
+            protein_grams REAL,
+            fiber_grams REAL,
+            calories REAL,
+            source_title TEXT,
+            source_url TEXT,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE (rec_date, meal_type)
+        )
+        """
+    )
+
+    connection.commit()
+    connection.close()
+
+
 def get_existing_columns(cursor, table_name):
     """Return the column names currently present on a table."""
     return [row[1] for row in cursor.execute(f"PRAGMA table_info({table_name})")]
@@ -154,6 +187,12 @@ def migrate_database():
     if "height_unit" not in profile_columns:
         cursor.execute("ALTER TABLE user_profile ADD COLUMN height_unit TEXT")
 
+    meal_recommendation_columns = get_existing_columns(cursor, "meal_recommendations")
+    if "recipe_id" not in meal_recommendation_columns:
+        cursor.execute(
+            "ALTER TABLE meal_recommendations ADD COLUMN recipe_id INTEGER"
+        )
+
     connection.commit()
     connection.close()
 
@@ -164,6 +203,7 @@ def initialize_database():
     create_protein_goals_table()
     create_food_tags_table()
     create_user_profile_table()
+    create_meal_recommendations_table()
     migrate_database()
 
 
@@ -246,6 +286,89 @@ def get_user_profile():
         "height_unit": height_unit,
         "updated_at": updated_at,
     }
+
+
+def save_meal_recommendations(rec_date, meals):
+    """Replace the cached meal recommendations for one date with new ones.
+
+    ``meals`` is a list of dicts with keys: meal_type, recipe_id, meal_name,
+    description, protein_grams, fiber_grams, calories, source_title,
+    source_url.
+    """
+    connection = create_connection()
+    cursor = connection.cursor()
+
+    cursor.execute("DELETE FROM meal_recommendations WHERE rec_date = ?", (rec_date,))
+
+    for meal in meals:
+        cursor.execute(
+            """
+            INSERT INTO meal_recommendations (
+                rec_date, meal_type, recipe_id, meal_name, description,
+                protein_grams, fiber_grams, calories, source_title, source_url
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                rec_date,
+                meal["meal_type"],
+                meal.get("recipe_id"),
+                meal["meal_name"],
+                meal.get("description"),
+                meal.get("protein_grams"),
+                meal.get("fiber_grams"),
+                meal.get("calories"),
+                meal.get("source_title"),
+                meal.get("source_url"),
+            ),
+        )
+
+    connection.commit()
+    connection.close()
+
+
+MEAL_TYPE_ORDER = "CASE meal_type WHEN 'Breakfast' THEN 1 WHEN 'Lunch' THEN 2 WHEN 'Dinner' THEN 3 ELSE 4 END"
+
+
+def get_meal_recommendations(rec_date):
+    """Read cached meal recommendations for one date, in meal order."""
+    connection = create_connection()
+
+    recommendations = pd.read_sql_query(
+        f"""
+        SELECT meal_type, recipe_id, meal_name, description, protein_grams,
+               fiber_grams, calories, source_title, source_url, created_at
+        FROM meal_recommendations
+        WHERE rec_date = ?
+        ORDER BY {MEAL_TYPE_ORDER}
+        """,
+        connection,
+        params=(rec_date,),
+    )
+
+    connection.close()
+    return recommendations
+
+
+def get_recent_recommended_recipe_ids(since_date):
+    """Distinct recipe ids recommended on or after ``since_date``.
+
+    Used to steer new recommendations away from recent repeats. Only rows
+    with a saved recipe_id count (older cached rows from before this column
+    existed are silently skipped, not treated as a repeat).
+    """
+    connection = create_connection()
+
+    rows = connection.execute(
+        """
+        SELECT DISTINCT recipe_id FROM meal_recommendations
+        WHERE rec_date >= ? AND recipe_id IS NOT NULL
+        """,
+        (since_date,),
+    ).fetchall()
+
+    connection.close()
+    return [row[0] for row in rows]
 
 
 def add_food_entry(

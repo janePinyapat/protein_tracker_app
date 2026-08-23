@@ -3,7 +3,7 @@
 These are population-level starting points, not a personalized clinical
 prescription. They're calculated from body weight and the purpose(s) chosen
 on the Profile page, then saved as the Rest day / Training day targets — the
-user can always fine-tune them afterward on the Set Daily Targets page.
+user can always fine-tune them afterward on the Meal Recommendations page.
 
 Sources used:
 

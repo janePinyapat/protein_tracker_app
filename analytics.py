@@ -43,6 +43,18 @@ def calculate_macro_totals(food_entries):
     return totals
 
 
+def calculate_remaining_targets(protein_target, fiber_target, logged_protein, logged_fiber):
+    """Protein/fiber still needed today, floored at zero.
+
+    Used to size meal suggestions to what's actually left to eat, not the
+    full daily target, once some food has already been logged today.
+    """
+    return {
+        "protein_grams": max((protein_target or 0.0) - (logged_protein or 0.0), 0.0),
+        "fiber_grams": max((fiber_target or 0.0) - (logged_fiber or 0.0), 0.0),
+    }
+
+
 def calculate_macro_calorie_split(food_entries):
     """Split calories across protein, carbs, and fat for a composition chart.
 

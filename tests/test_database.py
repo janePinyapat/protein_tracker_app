@@ -6,6 +6,8 @@ Each test runs against a throwaway database file so the user's real
 
 import sqlite3
 
+import pandas as pd
+
 import database
 
 
@@ -242,6 +244,140 @@ def test_save_user_profile_defaults_height_to_none(temp_database):
     assert profile["height_unit"] is None
 
 
+def test_get_meal_recommendations_returns_empty_before_generation(temp_database):
+    assert database.get_meal_recommendations("2026-08-23").empty
+
+
+def test_save_meal_recommendations_round_trips(temp_database):
+    meals = [
+        {
+            "meal_type": "Breakfast",
+            "recipe_id": 111,
+            "meal_name": "Yogurt bowl",
+            "description": "Yogurt with berries.",
+            "protein_grams": 25.0,
+            "fiber_grams": 6.0,
+            "calories": 350.0,
+            "source_title": "Example",
+            "source_url": "https://example.com/yogurt",
+        },
+        {
+            "meal_type": "Lunch",
+            "recipe_id": 222,
+            "meal_name": "Lentil salad",
+            "description": "Lentils and greens.",
+            "protein_grams": 22.0,
+            "fiber_grams": 14.0,
+            "calories": 420.0,
+            "source_title": "Example",
+            "source_url": "https://example.com/lentils",
+        },
+    ]
+
+    database.save_meal_recommendations("2026-08-23", meals)
+
+    saved = database.get_meal_recommendations("2026-08-23")
+    assert len(saved) == 2
+    assert list(saved["meal_type"]) == ["Breakfast", "Lunch"]  # meal-type order
+    assert saved.iloc[0]["meal_name"] == "Yogurt bowl"
+    assert saved.iloc[0]["protein_grams"] == 25.0
+    assert saved.iloc[0]["recipe_id"] == 111
+
+
+def test_save_meal_recommendations_defaults_recipe_id_to_none(temp_database):
+    database.save_meal_recommendations(
+        "2026-08-23",
+        [{"meal_type": "Breakfast", "meal_name": "No id given", "protein_grams": 10.0}],
+    )
+
+    saved = database.get_meal_recommendations("2026-08-23")
+    assert pd.isna(saved.iloc[0]["recipe_id"])
+
+
+def test_get_recent_recommended_recipe_ids_returns_ids_since_cutoff(temp_database):
+    database.save_meal_recommendations(
+        "2026-08-10",
+        [{"meal_type": "Breakfast", "recipe_id": 1, "meal_name": "Old", "protein_grams": 10.0}],
+    )
+    database.save_meal_recommendations(
+        "2026-08-20",
+        [
+            {"meal_type": "Breakfast", "recipe_id": 2, "meal_name": "Recent A", "protein_grams": 10.0},
+            {"meal_type": "Lunch", "recipe_id": 3, "meal_name": "Recent B", "protein_grams": 10.0},
+        ],
+    )
+
+    recent_ids = database.get_recent_recommended_recipe_ids("2026-08-15")
+
+    assert set(recent_ids) == {2, 3}
+
+
+def test_get_recent_recommended_recipe_ids_skips_rows_without_a_recipe_id(
+    temp_database,
+):
+    database.save_meal_recommendations(
+        "2026-08-23",
+        [{"meal_type": "Breakfast", "meal_name": "No id", "protein_grams": 10.0}],
+    )
+
+    assert database.get_recent_recommended_recipe_ids("2026-08-01") == []
+
+
+def test_get_recent_recommended_recipe_ids_returns_empty_list_when_none_saved(
+    temp_database,
+):
+    assert database.get_recent_recommended_recipe_ids("2026-08-01") == []
+
+
+def test_save_meal_recommendations_only_affects_its_own_date(temp_database):
+    database.save_meal_recommendations(
+        "2026-08-22",
+        [
+            {
+                "meal_type": "Dinner",
+                "meal_name": "Yesterday's dinner",
+                "protein_grams": 30.0,
+                "fiber_grams": 5.0,
+            }
+        ],
+    )
+    database.save_meal_recommendations(
+        "2026-08-23",
+        [
+            {
+                "meal_type": "Dinner",
+                "meal_name": "Today's dinner",
+                "protein_grams": 40.0,
+                "fiber_grams": 10.0,
+            }
+        ],
+    )
+
+    assert database.get_meal_recommendations("2026-08-22").iloc[0]["meal_name"] == (
+        "Yesterday's dinner"
+    )
+    assert database.get_meal_recommendations("2026-08-23").iloc[0]["meal_name"] == (
+        "Today's dinner"
+    )
+
+
+def test_save_meal_recommendations_replaces_existing_rows_for_same_date(
+    temp_database,
+):
+    database.save_meal_recommendations(
+        "2026-08-23",
+        [{"meal_type": "Breakfast", "meal_name": "Old idea", "protein_grams": 10.0}],
+    )
+    database.save_meal_recommendations(
+        "2026-08-23",
+        [{"meal_type": "Breakfast", "meal_name": "New idea", "protein_grams": 20.0}],
+    )
+
+    saved = database.get_meal_recommendations("2026-08-23")
+    assert len(saved) == 1
+    assert saved.iloc[0]["meal_name"] == "New idea"
+
+
 def test_migration_adds_weight_columns_to_legacy_user_profile(tmp_path, monkeypatch):
     """A profile saved before weight tracking existed must survive the
     migration and keep working — weight just comes back as None."""
@@ -308,6 +444,47 @@ def test_migration_adds_height_columns_to_weight_only_user_profile(
     profile = database.get_user_profile()
     assert profile["weight_value"] == 65.0
     assert profile["height_value"] is None
+
+
+def test_migration_adds_recipe_id_column_to_legacy_meal_recommendations(
+    tmp_path, monkeypatch
+):
+    """A cached recommendation saved before recipe_id existed must survive
+    the migration and keep working — recipe_id just comes back as None,
+    never mistaken for a real id worth excluding from future searches."""
+    database_path = tmp_path / "legacy_meal_recommendations.db"
+    monkeypatch.setattr(database, "DATABASE_NAME", str(database_path))
+
+    connection = sqlite3.connect(str(database_path))
+    connection.executescript(
+        """
+        CREATE TABLE meal_recommendations (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            rec_date TEXT NOT NULL,
+            meal_type TEXT NOT NULL,
+            meal_name TEXT NOT NULL,
+            description TEXT,
+            protein_grams REAL,
+            fiber_grams REAL,
+            calories REAL,
+            source_title TEXT,
+            source_url TEXT,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE (rec_date, meal_type)
+        );
+        INSERT INTO meal_recommendations (rec_date, meal_type, meal_name, protein_grams)
+        VALUES ('2026-08-20', 'Breakfast', 'Legacy Yogurt Bowl', 20.0);
+        """
+    )
+    connection.commit()
+    connection.close()
+
+    database.initialize_database()
+
+    saved = database.get_meal_recommendations("2026-08-20")
+    assert saved.iloc[0]["meal_name"] == "Legacy Yogurt Bowl"
+    assert pd.isna(saved.iloc[0]["recipe_id"])
+    assert database.get_recent_recommended_recipe_ids("2026-08-01") == []
 
 
 def test_migration_adds_macro_columns_to_legacy_database(tmp_path, monkeypatch):
