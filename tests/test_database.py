@@ -224,6 +224,24 @@ def test_save_user_profile_defaults_weight_to_none(temp_database):
     assert profile["weight_unit"] is None
 
 
+def test_save_user_profile_stores_height(temp_database):
+    database.save_user_profile(
+        "Vegan", ["Strength training / muscle recovery"], 68.0, "kg", 170.0, "cm"
+    )
+
+    profile = database.get_user_profile()
+    assert profile["height_value"] == 170.0
+    assert profile["height_unit"] == "cm"
+
+
+def test_save_user_profile_defaults_height_to_none(temp_database):
+    database.save_user_profile("Omnivore", ["Other"], 68.0, "kg")
+
+    profile = database.get_user_profile()
+    assert profile["height_value"] is None
+    assert profile["height_unit"] is None
+
+
 def test_migration_adds_weight_columns_to_legacy_user_profile(tmp_path, monkeypatch):
     """A profile saved before weight tracking existed must survive the
     migration and keep working — weight just comes back as None."""
@@ -250,9 +268,46 @@ def test_migration_adds_weight_columns_to_legacy_user_profile(tmp_path, monkeypa
     profile = database.get_user_profile()
     assert profile["diet_type"] == "Omnivore"
     assert profile["weight_value"] is None
+    assert profile["height_value"] is None
 
-    database.save_user_profile("Omnivore", ["Other"], 70.0, "kg")
-    assert database.get_user_profile()["weight_value"] == 70.0
+    database.save_user_profile("Omnivore", ["Other"], 70.0, "kg", 170.0, "cm")
+    updated = database.get_user_profile()
+    assert updated["weight_value"] == 70.0
+    assert updated["height_value"] == 170.0
+
+
+def test_migration_adds_height_columns_to_weight_only_user_profile(
+    tmp_path, monkeypatch
+):
+    """A profile saved after weight tracking existed but before height did
+    must survive the migration and keep working — height comes back as
+    None."""
+    database_path = tmp_path / "weight_only_profile.db"
+    monkeypatch.setattr(database, "DATABASE_NAME", str(database_path))
+
+    connection = sqlite3.connect(str(database_path))
+    connection.executescript(
+        """
+        CREATE TABLE user_profile (
+            id INTEGER PRIMARY KEY CHECK (id = 1),
+            diet_type TEXT NOT NULL,
+            purposes TEXT NOT NULL,
+            weight_value REAL,
+            weight_unit TEXT,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+        INSERT INTO user_profile (id, diet_type, purposes, weight_value, weight_unit)
+        VALUES (1, 'Vegan', 'Strength training / muscle recovery', 65.0, 'kg');
+        """
+    )
+    connection.commit()
+    connection.close()
+
+    database.initialize_database()
+
+    profile = database.get_user_profile()
+    assert profile["weight_value"] == 65.0
+    assert profile["height_value"] is None
 
 
 def test_migration_adds_macro_columns_to_legacy_database(tmp_path, monkeypatch):

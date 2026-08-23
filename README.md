@@ -127,7 +127,7 @@ as before.
 The Profile page (first in the nav, and shown once automatically on first
 run as onboarding) asks for a diet type, one or more purposes ("PCOS
 management", "Strength training / muscle recovery", "General health
-tracking", "Other"), and an optional weight.
+tracking", "Other"), and optional weight and height.
 
 - Diet type and purpose reorder which tags are suggested first when logging
   food — nothing is ever hidden; every starter tag stays available to
@@ -137,6 +137,16 @@ tracking", "Other"), and an optional weight.
   immediately. When more than one purpose is selected, the higher applicable
   protein rate is used (so, e.g., PCOS management plus strength training
   gets the strength-training level, not a diluted average).
+- If both weight and height are given, the page also shows your BMI (World
+  Health Organization formula and category) as general context. Height
+  doesn't feed into the protein/fiber calculation — those are dosed from
+  bodyweight per the cited guidelines, and BMI isn't a recognized input for
+  that. A caption next to the BMI number notes its known limitation: it
+  doesn't distinguish muscle from fat, so it reads misleadingly for very
+  muscular or lean people.
+- The "Your numbers" panel below the form always reflects your current
+  saved weight, height, BMI, and daily targets — not just a one-time toast
+  on save.
 
 These are **starting points from published nutrition guidelines, not a
 personalized medical recommendation** — see `nutrition_targets.py` for the

@@ -1,7 +1,10 @@
 from nutrition_targets import (
+    calculate_bmi,
     calculate_fiber_target,
     calculate_protein_targets,
+    convert_to_cm,
     convert_to_kg,
+    get_bmi_category,
 )
 
 
@@ -81,3 +84,52 @@ def test_calculate_fiber_target_takes_the_higher_value_across_purposes():
         ["General health tracking", "PCOS management"]
     )
     assert fiber == 30
+
+
+def test_convert_to_cm_passes_through_cm():
+    assert convert_to_cm(175.0, "cm") == 175.0
+
+
+def test_convert_to_cm_converts_inches():
+    # 70 in is exactly 177.8 cm
+    assert round(convert_to_cm(70.0, "in"), 1) == 177.8
+
+
+def test_convert_to_cm_handles_none_and_non_positive():
+    assert convert_to_cm(None, "cm") is None
+    assert convert_to_cm(0, "cm") is None
+    assert convert_to_cm(-1, "cm") is None
+
+
+def test_calculate_bmi_matches_known_value():
+    # 70 kg at 175 cm is a BMI of 22.9 (WHO formula: kg / m^2)
+    assert calculate_bmi(70.0, 175.0) == 22.9
+
+
+def test_calculate_bmi_returns_none_without_both_measurements():
+    assert calculate_bmi(None, 175.0) is None
+    assert calculate_bmi(70.0, None) is None
+    assert calculate_bmi(70.0, 0) is None
+
+
+def test_get_bmi_category_underweight():
+    assert get_bmi_category(17.0) == "Underweight"
+
+
+def test_get_bmi_category_normal_weight_including_boundary():
+    assert get_bmi_category(18.5) == "Normal weight"
+    assert get_bmi_category(24.9) == "Normal weight"
+
+
+def test_get_bmi_category_overweight_including_boundary():
+    assert get_bmi_category(25.0) == "Overweight"
+    assert get_bmi_category(29.9) == "Overweight"
+
+
+def test_get_bmi_category_obese_including_boundary():
+    assert get_bmi_category(30.0) == "Obese"
+    assert get_bmi_category(40.0) == "Obese"
+
+
+def test_get_bmi_category_handles_none():
+    assert get_bmi_category(None) is None

@@ -1,8 +1,8 @@
 """Vocabulary and behavior driven by the user's profile.
 
-The profile (diet type, purpose, and optional weight) is captured once
-during onboarding and can be edited any time from the Profile page. It does
-two things:
+The profile (diet type, purpose, and optional weight/height) is captured
+once during onboarding and can be edited any time from the Profile page. It
+does two things:
 
 1. Reorders which tag suggestions appear first when logging food — this
    never hides a tag or restricts what can be logged; every starter tag
@@ -11,7 +11,8 @@ two things:
    protein and fiber targets (see ``nutrition_targets.py`` for the
    guidelines and sources used) and saves them. These are starting points
    the user can fine-tune any time on the Set Daily Targets page — not a
-   personalized medical recommendation.
+   personalized medical recommendation. Height (with weight) is used only to
+   show BMI as general context; it doesn't affect the protein/fiber numbers.
 """
 
 from database import save_protein_goal, save_user_profile
@@ -76,15 +77,29 @@ def get_priority_tags(diet_type, purposes):
     return priority
 
 
-def save_profile_and_targets(diet_type, purposes, weight_value=None, weight_unit=None):
+def save_profile_and_targets(
+    diet_type,
+    purposes,
+    weight_value=None,
+    weight_unit=None,
+    height_value=None,
+    height_unit=None,
+):
     """Save the profile, and recalculate Rest day / Training day targets from it.
+
+    Height is saved (for the BMI shown on the Profile page) but doesn't feed
+    into the protein/fiber calculation — protein and fiber needs are dosed
+    from bodyweight directly in the guidelines this app cites, and BMI isn't
+    a recognized input for that calculation.
 
     Returns ``(protein_targets, fiber_target)``. ``protein_targets`` is None
     when no usable weight was given, in which case any previously saved
     protein/fiber targets are left untouched — this only ever recalculates
     when it has a weight to calculate from.
     """
-    save_user_profile(diet_type, purposes, weight_value, weight_unit)
+    save_user_profile(
+        diet_type, purposes, weight_value, weight_unit, height_value, height_unit
+    )
 
     weight_kg = convert_to_kg(weight_value, weight_unit)
     protein_targets = calculate_protein_targets(weight_kg, purposes)

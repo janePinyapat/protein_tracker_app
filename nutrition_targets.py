@@ -28,6 +28,12 @@ Sources used:
   National Academy of Medicine Dietary Reference Intakes report. Higher
   fiber intake (commonly 30 g/day or more) is frequently discussed in PCOS
   nutrition education for blood-sugar regulation, so that purpose uses 30 g.
+- BMI: calculated as weight (kg) / height (m)^2, and categorized using the
+  World Health Organization's standard adult BMI classification (Underweight
+  < 18.5, Normal weight 18.5-24.9, Overweight 25-29.9, Obese >= 30). BMI is a
+  population-level screening measure — it does not account for muscle mass,
+  bone density, or fat distribution, so it can be misleading for very
+  muscular or very lean individuals. It's shown for general context only.
 
 None of this is medical advice. Anyone with a health condition, or who wants
 targets tailored to their individual situation, should talk to a registered
@@ -35,6 +41,7 @@ dietitian or their doctor.
 """
 
 KG_PER_POUND = 0.45359237
+CM_PER_INCH = 2.54
 
 DEFAULT_PROTEIN_G_PER_KG = {"rest": 0.8, "training": 0.8}
 
@@ -67,6 +74,22 @@ SOURCES_NOTE = (
     "discussed in PCOS nutrition education. Talk to a registered dietitian "
     "or your doctor for targets tailored to you."
 )
+
+BMI_SOURCE_NOTE = (
+    "BMI uses the World Health Organization's standard adult classification "
+    "(weight in kg divided by height in m, squared). It's a general "
+    "population screening measure, not a diagnosis — it doesn't account for "
+    "muscle mass, bone density, or where the body carries weight, so it can "
+    "read misleadingly high for muscular or very active people. Shown for "
+    "general context only."
+)
+
+BMI_CATEGORIES = [
+    (18.5, "Underweight"),
+    (25.0, "Normal weight"),
+    (30.0, "Overweight"),
+]
+BMI_CATEGORY_ABOVE_ALL_THRESHOLDS = "Obese"
 
 
 def convert_to_kg(weight_value, weight_unit):
@@ -114,3 +137,35 @@ def calculate_fiber_target(purposes):
         fiber_target = max(fiber_target, PURPOSE_FIBER_G_PER_DAY.get(purpose, fiber_target))
 
     return fiber_target
+
+
+def convert_to_cm(height_value, height_unit):
+    """Convert a height in cm or inches to centimeters."""
+    if height_value is None or height_value <= 0:
+        return None
+
+    if height_unit == "in":
+        return height_value * CM_PER_INCH
+
+    return height_value
+
+
+def calculate_bmi(weight_kg, height_cm):
+    """Body Mass Index: weight (kg) / height (m) squared, rounded to 1 decimal."""
+    if weight_kg is None or weight_kg <= 0 or height_cm is None or height_cm <= 0:
+        return None
+
+    height_m = height_cm / 100
+    return round(weight_kg / (height_m**2), 1)
+
+
+def get_bmi_category(bmi):
+    """WHO standard adult BMI category label for a calculated BMI value."""
+    if bmi is None:
+        return None
+
+    for threshold, label in BMI_CATEGORIES:
+        if bmi < threshold:
+            return label
+
+    return BMI_CATEGORY_ABOVE_ALL_THRESHOLDS

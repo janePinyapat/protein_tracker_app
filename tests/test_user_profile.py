@@ -88,3 +88,28 @@ def test_save_profile_and_targets_does_not_erase_existing_goals_when_weight_omit
     goals = database.get_protein_goals()
     rest_goal = goals[goals["day_type"] == "Rest day"].iloc[0]
     assert rest_goal["daily_target_grams"] == 70
+
+
+def test_save_profile_and_targets_saves_height(temp_database):
+    save_profile_and_targets(
+        "Omnivore", ["General health tracking"], 70.0, "kg", 175.0, "cm"
+    )
+
+    profile = database.get_user_profile()
+    assert profile["height_value"] == 175.0
+    assert profile["height_unit"] == "cm"
+
+
+def test_save_profile_and_targets_height_does_not_affect_protein_calculation(
+    temp_database,
+):
+    """Height is for BMI display only — it must not change the protein/fiber
+    numbers, which are dosed from bodyweight per the cited guidelines."""
+    without_height, _ = save_profile_and_targets(
+        "Omnivore", ["Strength training / muscle recovery"], 70.0, "kg"
+    )
+    with_height, _ = save_profile_and_targets(
+        "Omnivore", ["Strength training / muscle recovery"], 70.0, "kg", 150.0, "cm"
+    )
+
+    assert without_height == with_height

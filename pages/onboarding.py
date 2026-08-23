@@ -11,8 +11,9 @@ st.write(
     "food — every label stays available to everyone. If you add your "
     "weight, the app also suggests Rest day / Training day protein and "
     "fiber targets for you, calculated from published nutrition guidelines "
-    "— not a personalized medical recommendation, and nothing here rates "
-    "your food or diagnoses anything."
+    "— not a personalized medical recommendation. Adding height too shows "
+    "your BMI as general context. Nothing here rates your food or "
+    "diagnoses anything, and you can change all of it later."
 )
 
 with st.form("onboarding_form"):
@@ -23,7 +24,7 @@ with st.form("onboarding_form"):
         options=PURPOSES,
     )
 
-    weight_column, unit_column = st.columns([2, 1])
+    weight_column, weight_unit_column = st.columns([2, 1])
 
     with weight_column:
         weight_value = st.number_input(
@@ -31,14 +32,26 @@ with st.form("onboarding_form"):
             min_value=0.0,
             step=0.5,
             help=(
-                "Used only to calculate suggested protein and fiber "
-                "targets. Leave at 0 to skip and set your own targets "
-                "later."
+                "Used to calculate suggested protein and fiber targets, "
+                "and (with height) your BMI. Leave at 0 to skip."
             ),
         )
 
-    with unit_column:
-        weight_unit = st.selectbox("Unit", ["kg", "lb"])
+    with weight_unit_column:
+        weight_unit = st.selectbox("Weight unit", ["kg", "lb"])
+
+    height_column, height_unit_column = st.columns([2, 1])
+
+    with height_column:
+        height_value = st.number_input(
+            "Your height (optional)",
+            min_value=0.0,
+            step=1.0,
+            help="Used only to calculate BMI, alongside your weight. Leave at 0 to skip.",
+        )
+
+    with height_unit_column:
+        height_unit = st.selectbox("Height unit", ["cm", "in"])
 
     submitted = st.form_submit_button("Get started")
 
@@ -51,6 +64,8 @@ with st.form("onboarding_form"):
                 purposes,
                 weight_value if weight_value > 0 else None,
                 weight_unit,
+                height_value if height_value > 0 else None,
+                height_unit,
             )
 
             if protein_targets:

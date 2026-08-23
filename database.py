@@ -107,6 +107,8 @@ def create_user_profile_table():
             purposes TEXT NOT NULL,
             weight_value REAL,
             weight_unit TEXT,
+            height_value REAL,
+            height_unit TEXT,
             updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
         )
         """
@@ -147,6 +149,10 @@ def migrate_database():
         cursor.execute("ALTER TABLE user_profile ADD COLUMN weight_value REAL")
     if "weight_unit" not in profile_columns:
         cursor.execute("ALTER TABLE user_profile ADD COLUMN weight_unit TEXT")
+    if "height_value" not in profile_columns:
+        cursor.execute("ALTER TABLE user_profile ADD COLUMN height_value REAL")
+    if "height_unit" not in profile_columns:
+        cursor.execute("ALTER TABLE user_profile ADD COLUMN height_unit TEXT")
 
     connection.commit()
     connection.close()
@@ -161,7 +167,14 @@ def initialize_database():
     migrate_database()
 
 
-def save_user_profile(diet_type, purposes, weight_value=None, weight_unit=None):
+def save_user_profile(
+    diet_type,
+    purposes,
+    weight_value=None,
+    weight_unit=None,
+    height_value=None,
+    height_unit=None,
+):
     """Save or update the single user profile row."""
     connection = create_connection()
     cursor = connection.cursor()
@@ -170,17 +183,22 @@ def save_user_profile(diet_type, purposes, weight_value=None, weight_unit=None):
 
     cursor.execute(
         """
-        INSERT INTO user_profile (id, diet_type, purposes, weight_value, weight_unit)
-        VALUES (1, ?, ?, ?, ?)
+        INSERT INTO user_profile (
+            id, diet_type, purposes, weight_value, weight_unit,
+            height_value, height_unit
+        )
+        VALUES (1, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id)
         DO UPDATE SET
             diet_type = excluded.diet_type,
             purposes = excluded.purposes,
             weight_value = excluded.weight_value,
             weight_unit = excluded.weight_unit,
+            height_value = excluded.height_value,
+            height_unit = excluded.height_unit,
             updated_at = CURRENT_TIMESTAMP
         """,
-        (diet_type, purposes_text, weight_value, weight_unit),
+        (diet_type, purposes_text, weight_value, weight_unit, height_value, height_unit),
     )
 
     connection.commit()
@@ -193,7 +211,8 @@ def get_user_profile():
 
     row = connection.execute(
         """
-        SELECT diet_type, purposes, weight_value, weight_unit, updated_at
+        SELECT diet_type, purposes, weight_value, weight_unit,
+               height_value, height_unit, updated_at
         FROM user_profile WHERE id = 1
         """
     ).fetchone()
@@ -203,7 +222,15 @@ def get_user_profile():
     if row is None:
         return None
 
-    diet_type, purposes_text, weight_value, weight_unit, updated_at = row
+    (
+        diet_type,
+        purposes_text,
+        weight_value,
+        weight_unit,
+        height_value,
+        height_unit,
+        updated_at,
+    ) = row
     purposes = (
         [purpose.strip() for purpose in purposes_text.split(",") if purpose.strip()]
         if purposes_text
@@ -215,6 +242,8 @@ def get_user_profile():
         "purposes": purposes,
         "weight_value": weight_value,
         "weight_unit": weight_unit,
+        "height_value": height_value,
+        "height_unit": height_unit,
         "updated_at": updated_at,
     }
 
