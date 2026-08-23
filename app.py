@@ -14,6 +14,8 @@ else:
         st.Page("pages/profile.py", title="Profile"),
         st.Page("pages/meal_recommendations.py", title="Meal Recommendations"),
         st.Page("pages/log_food.py", title="Log Food"),
+        st.Page("pages/log_water.py", title="Log Water"),
+        st.Page("pages/log_sleep.py", title="Log Sleep"),
         st.Page("pages/overview.py", title="Dashboard"),
     ]
 

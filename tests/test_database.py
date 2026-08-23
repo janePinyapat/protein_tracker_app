@@ -564,3 +564,109 @@ def pd_isna(value):
     import pandas as pd
 
     return pd.isna(value)
+
+
+# --- water_log -----------------------------------------------------------------
+
+
+def test_add_water_entry_and_get_all_water_entries(temp_database):
+    database.add_water_entry(250.0, "2026-08-20")
+    database.add_water_entry(500.0, "2026-08-20")
+
+    entries = database.get_all_water_entries()
+    assert len(entries) == 2
+    assert set(entries["amount_ml"]) == {250.0, 500.0}
+
+
+def test_get_all_water_entries_returns_empty_before_logging(temp_database):
+    assert database.get_all_water_entries().empty
+
+
+def test_delete_water_entry_removes_only_that_row(temp_database):
+    first_id = database.add_water_entry(250.0, "2026-08-20")
+    database.add_water_entry(500.0, "2026-08-20")
+
+    deleted = database.delete_water_entry(first_id)
+
+    assert deleted == 1
+    remaining = database.get_all_water_entries()
+    assert len(remaining) == 1
+    assert remaining.iloc[0]["amount_ml"] == 500.0
+
+
+def test_delete_water_entry_returns_zero_for_unknown_id(temp_database):
+    assert database.delete_water_entry(999) == 0
+
+
+# --- sleep_log -----------------------------------------------------------------
+
+
+def test_save_sleep_entry_round_trips(temp_database):
+    database.save_sleep_entry("2026-08-20", 7.5, "Restful")
+
+    entry = database.get_sleep_entry("2026-08-20")
+    assert entry["hours_slept"] == 7.5
+    assert entry["notes"] == "Restful"
+
+
+def test_get_sleep_entry_returns_none_when_not_logged(temp_database):
+    assert database.get_sleep_entry("2026-08-20") is None
+
+
+def test_save_sleep_entry_upserts_instead_of_duplicating(temp_database):
+    database.save_sleep_entry("2026-08-20", 6.0, None)
+    database.save_sleep_entry("2026-08-20", 8.0, "Better night")
+
+    all_entries = database.get_all_sleep_entries()
+    assert len(all_entries) == 1
+    assert all_entries.iloc[0]["hours_slept"] == 8.0
+    assert all_entries.iloc[0]["notes"] == "Better night"
+
+
+def test_get_all_sleep_entries_orders_most_recent_first(temp_database):
+    database.save_sleep_entry("2026-08-18", 7.0)
+    database.save_sleep_entry("2026-08-20", 6.5)
+
+    entries = database.get_all_sleep_entries()
+    assert list(entries["log_date"]) == ["2026-08-20", "2026-08-18"]
+
+
+def test_delete_sleep_entry_removes_that_date(temp_database):
+    database.save_sleep_entry("2026-08-20", 7.0)
+
+    deleted = database.delete_sleep_entry("2026-08-20")
+
+    assert deleted == 1
+    assert database.get_sleep_entry("2026-08-20") is None
+
+
+# --- wellness_goals --------------------------------------------------------------
+
+
+def test_get_wellness_goals_returns_none_before_saving(temp_database):
+    assert database.get_wellness_goals() is None
+
+
+def test_save_wellness_goals_round_trips_both_targets(temp_database):
+    database.save_wellness_goals(water_target_ml=2000.0, sleep_target_hours=8.0)
+
+    goals = database.get_wellness_goals()
+    assert goals["water_target_ml"] == 2000.0
+    assert goals["sleep_target_hours"] == 8.0
+
+
+def test_save_wellness_goals_allows_setting_only_one_target(temp_database):
+    database.save_wellness_goals(water_target_ml=2000.0, sleep_target_hours=None)
+
+    goals = database.get_wellness_goals()
+    assert goals["water_target_ml"] == 2000.0
+    assert goals["sleep_target_hours"] is None
+
+
+def test_save_wellness_goals_updates_the_single_row(temp_database):
+    database.save_wellness_goals(water_target_ml=2000.0, sleep_target_hours=8.0)
+    database.save_wellness_goals(water_target_ml=2500.0, sleep_target_hours=7.0)
+
+    goals = database.get_wellness_goals()
+    assert goals["water_target_ml"] == 2500.0
+    assert goals["sleep_target_hours"] == 7.0

@@ -14,7 +14,7 @@ from database import (
     initialize_database,
 )
 from food_photo_ai import FoodPhotoError, analyze_food_photo, get_api_key as get_anthropic_api_key
-from food_tags import TAG_DISCLAIMER, TAG_HELP, build_tag_options
+from food_tags import TAG_DISCLAIMER, TAG_HELP, build_tag_options, suggest_tags_from_entry
 from livsmedelsverket_api import (
     ATTRIBUTION,
     FoodLookupError,
@@ -346,6 +346,11 @@ with st.form("log_food_form", clear_on_submit=False):
         help=TAG_HELP,
         accept_new_options=True,
     )
+    st.caption(
+        "A few labels are also added automatically from what you enter above "
+        "(e.g. \"High protein\" at 20g+, \"Dairy\" for yogurt/cheese in the "
+        "description) — you'll see exactly which ones after saving."
+    )
 
     submitted = st.form_submit_button("Save entry")
 
@@ -355,6 +360,16 @@ with st.form("log_food_form", clear_on_submit=False):
         elif protein_grams <= 0 and carbs_grams <= 0 and fat_grams <= 0:
             st.error("Enter at least one macro value before saving.")
         else:
+            suggested_tags = suggest_tags_from_entry(
+                description.strip(),
+                protein_grams,
+                fiber_grams,
+                meal_type,
+                protein_source,
+            )
+            auto_added_tags = [tag for tag in suggested_tags if tag not in selected_tags]
+            final_tags = list(selected_tags) + auto_added_tags
+
             add_food_entry(
                 description=description.strip(),
                 protein_grams=protein_grams,
@@ -365,10 +380,18 @@ with st.form("log_food_form", clear_on_submit=False):
                 carbs_grams=carbs_grams,
                 fat_grams=fat_grams,
                 fiber_grams=fiber_grams,
-                tags=selected_tags,
+                tags=final_tags,
             )
             st.session_state.prefill = dict(EMPTY_PREFILL)
-            st.success("Food entry saved.")
+
+            if auto_added_tags:
+                st.success(
+                    f"Food entry saved. Auto-added labels based on what you "
+                    f"entered: {', '.join(auto_added_tags)}."
+                )
+            else:
+                st.success("Food entry saved.")
+
             st.rerun()
 
 st.caption(TAG_DISCLAIMER)

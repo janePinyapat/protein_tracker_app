@@ -151,6 +151,79 @@ def create_meal_recommendations_table():
     connection.close()
 
 
+def create_water_log_table():
+    """Create the water log table if it does not already exist.
+
+    Multiple entries per day, same shape as ``food_log`` — log each glass as
+    you drink it and the day's total is the sum.
+    """
+    connection = create_connection()
+    cursor = connection.cursor()
+
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS water_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            amount_ml REAL NOT NULL,
+            log_date TEXT NOT NULL,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )
+        """
+    )
+
+    connection.commit()
+    connection.close()
+
+
+def create_sleep_log_table():
+    """Create the sleep log table if it does not already exist.
+
+    One row per date (sleep is naturally nightly) — logging the same date
+    again updates that row rather than adding a second one.
+    """
+    connection = create_connection()
+    cursor = connection.cursor()
+
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS sleep_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            log_date TEXT NOT NULL UNIQUE,
+            hours_slept REAL NOT NULL,
+            notes TEXT,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )
+        """
+    )
+
+    connection.commit()
+    connection.close()
+
+
+def create_wellness_goals_table():
+    """Create the single-row water/sleep target table if it does not exist.
+
+    Same single-pinned-row shape as ``user_profile`` — one row for both
+    targets, no day-type split.
+    """
+    connection = create_connection()
+    cursor = connection.cursor()
+
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS wellness_goals (
+            id INTEGER PRIMARY KEY CHECK (id = 1),
+            water_target_ml REAL,
+            sleep_target_hours REAL,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )
+        """
+    )
+
+    connection.commit()
+    connection.close()
+
+
 def get_existing_columns(cursor, table_name):
     """Return the column names currently present on a table."""
     return [row[1] for row in cursor.execute(f"PRAGMA table_info({table_name})")]
@@ -204,6 +277,9 @@ def initialize_database():
     create_food_tags_table()
     create_user_profile_table()
     create_meal_recommendations_table()
+    create_water_log_table()
+    create_sleep_log_table()
+    create_wellness_goals_table()
     migrate_database()
 
 
@@ -369,6 +445,167 @@ def get_recent_recommended_recipe_ids(since_date):
 
     connection.close()
     return [row[0] for row in rows]
+
+
+def add_water_entry(amount_ml, log_date):
+    """Save one water log entry."""
+    connection = create_connection()
+    cursor = connection.cursor()
+
+    cursor.execute(
+        "INSERT INTO water_log (amount_ml, log_date) VALUES (?, ?)",
+        (amount_ml, log_date),
+    )
+
+    connection.commit()
+    connection.close()
+
+    return cursor.lastrowid
+
+
+def get_all_water_entries():
+    """Read all saved water entries, most recent first."""
+    connection = create_connection()
+
+    water_entries = pd.read_sql_query(
+        """
+        SELECT id, amount_ml, log_date, created_at
+        FROM water_log
+        ORDER BY log_date DESC, id DESC
+        """,
+        connection,
+    )
+
+    connection.close()
+    return water_entries
+
+
+def delete_water_entry(entry_id):
+    """Delete one water entry by its id."""
+    connection = create_connection()
+    cursor = connection.cursor()
+
+    cursor.execute("DELETE FROM water_log WHERE id = ?", (entry_id,))
+
+    deleted_rows = cursor.rowcount
+    connection.commit()
+    connection.close()
+
+    return deleted_rows
+
+
+def save_sleep_entry(log_date, hours_slept, notes=None):
+    """Save or update the sleep entry for one date."""
+    connection = create_connection()
+    cursor = connection.cursor()
+
+    cursor.execute(
+        """
+        INSERT INTO sleep_log (log_date, hours_slept, notes)
+        VALUES (?, ?, ?)
+        ON CONFLICT(log_date)
+        DO UPDATE SET
+            hours_slept = excluded.hours_slept,
+            notes = excluded.notes,
+            created_at = CURRENT_TIMESTAMP
+        """,
+        (log_date, hours_slept, notes),
+    )
+
+    connection.commit()
+    connection.close()
+
+
+def get_all_sleep_entries():
+    """Read all saved sleep entries, most recent night first."""
+    connection = create_connection()
+
+    sleep_entries = pd.read_sql_query(
+        """
+        SELECT id, log_date, hours_slept, notes, created_at
+        FROM sleep_log
+        ORDER BY log_date DESC
+        """,
+        connection,
+    )
+
+    connection.close()
+    return sleep_entries
+
+
+def get_sleep_entry(log_date):
+    """Read the sleep entry for one date, or None if nothing was logged."""
+    connection = create_connection()
+
+    row = connection.execute(
+        "SELECT hours_slept, notes FROM sleep_log WHERE log_date = ?",
+        (log_date,),
+    ).fetchone()
+
+    connection.close()
+
+    if row is None:
+        return None
+
+    hours_slept, notes = row
+    return {"hours_slept": hours_slept, "notes": notes}
+
+
+def delete_sleep_entry(log_date):
+    """Delete the sleep entry for one date."""
+    connection = create_connection()
+    cursor = connection.cursor()
+
+    cursor.execute("DELETE FROM sleep_log WHERE log_date = ?", (log_date,))
+
+    deleted_rows = cursor.rowcount
+    connection.commit()
+    connection.close()
+
+    return deleted_rows
+
+
+def save_wellness_goals(water_target_ml=None, sleep_target_hours=None):
+    """Save or update the single water/sleep target row."""
+    connection = create_connection()
+    cursor = connection.cursor()
+
+    cursor.execute(
+        """
+        INSERT INTO wellness_goals (id, water_target_ml, sleep_target_hours)
+        VALUES (1, ?, ?)
+        ON CONFLICT(id)
+        DO UPDATE SET
+            water_target_ml = excluded.water_target_ml,
+            sleep_target_hours = excluded.sleep_target_hours,
+            updated_at = CURRENT_TIMESTAMP
+        """,
+        (water_target_ml, sleep_target_hours),
+    )
+
+    connection.commit()
+    connection.close()
+
+
+def get_wellness_goals():
+    """Read the water/sleep targets, or None if neither has been set."""
+    connection = create_connection()
+
+    row = connection.execute(
+        "SELECT water_target_ml, sleep_target_hours, updated_at FROM wellness_goals WHERE id = 1"
+    ).fetchone()
+
+    connection.close()
+
+    if row is None:
+        return None
+
+    water_target_ml, sleep_target_hours, updated_at = row
+    return {
+        "water_target_ml": water_target_ml,
+        "sleep_target_hours": sleep_target_hours,
+        "updated_at": updated_at,
+    }
 
 
 def add_food_entry(

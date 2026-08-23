@@ -18,8 +18,23 @@ from analytics import (
     format_grams,
     get_week_bounds,
 )
-from database import get_all_food_entries, get_protein_goals, initialize_database
+from database import (
+    get_all_food_entries,
+    get_all_sleep_entries,
+    get_all_water_entries,
+    get_protein_goals,
+    get_wellness_goals,
+    initialize_database,
+)
 from food_tags import TAG_DISCLAIMER
+from wellness import (
+    calculate_daily_water_trend,
+    calculate_water_total,
+    format_hours,
+    format_ml,
+    summarize_week_sleep,
+    summarize_week_water,
+)
 
 
 DAY_TYPES = ["Rest day", "Training day"]
@@ -197,6 +212,52 @@ def create_week_macro_chart(week_frame):
     return chart
 
 
+def create_week_water_chart(week_frame, water_target_ml):
+    """Create a bar chart of water logged per day across one week."""
+    chart = px.bar(
+        week_frame,
+        x="log_date",
+        y="amount_ml",
+        title="Water by Day",
+        color_discrete_sequence=PINK_PALETTE,
+    )
+    chart.update_traces(hovertemplate="%{x}<br>%{y:.0f} ml<extra></extra>")
+
+    if water_target_ml > 0:
+        chart.add_hline(
+            y=water_target_ml,
+            line_dash="dash",
+            line_color=GOAL_LINE_COLOR,
+            annotation_text="Goal",
+        )
+
+    chart.update_layout(xaxis_title=None, yaxis_title="Water (ml)")
+    return chart
+
+
+def create_week_sleep_chart(week_entries, sleep_target_hours):
+    """Create a bar chart of hours slept per night across one week."""
+    chart = px.bar(
+        week_entries,
+        x="log_date",
+        y="hours_slept",
+        title="Sleep by Night",
+        color_discrete_sequence=PINK_PALETTE,
+    )
+    chart.update_traces(hovertemplate="%{x}<br>%{y:.1f} h<extra></extra>")
+
+    if sleep_target_hours > 0:
+        chart.add_hline(
+            y=sleep_target_hours,
+            line_dash="dash",
+            line_color=GOAL_LINE_COLOR,
+            annotation_text="Goal",
+        )
+
+    chart.update_layout(xaxis_title=None, yaxis_title="Hours slept")
+    return chart
+
+
 initialize_database()
 
 st.title("Dashboard")
@@ -204,6 +265,19 @@ st.write("Daily and weekly summaries of what you logged.")
 
 food_entries = get_all_food_entries()
 goals = get_protein_goals()
+water_entries = get_all_water_entries()
+sleep_entries = get_all_sleep_entries()
+wellness_goals = get_wellness_goals()
+water_target_ml = (
+    wellness_goals["water_target_ml"]
+    if wellness_goals and wellness_goals["water_target_ml"]
+    else 0.0
+)
+sleep_target_hours = (
+    wellness_goals["sleep_target_hours"]
+    if wellness_goals and wellness_goals["sleep_target_hours"]
+    else 0.0
+)
 
 daily_tab, weekly_tab = st.tabs(["Daily", "Weekly"])
 
@@ -248,6 +322,34 @@ with daily_tab:
                 f"{format_grams(fiber_target)}"
             ),
         )
+
+    st.subheader("Water & Sleep")
+
+    todays_water = water_entries[water_entries["log_date"] == selected_date.isoformat()]
+    todays_water_total = calculate_water_total(todays_water)
+    todays_sleep = sleep_entries[sleep_entries["log_date"] == selected_date.isoformat()]
+
+    water_column, sleep_column = st.columns(2)
+
+    with water_column:
+        st.metric("Water", format_ml(todays_water_total))
+        if water_target_ml > 0:
+            st.progress(
+                min(todays_water_total / water_target_ml, 1.0),
+                text=f"{format_ml(todays_water_total)} of {format_ml(water_target_ml)}",
+            )
+
+    with sleep_column:
+        if not todays_sleep.empty:
+            hours_slept = float(todays_sleep.iloc[0]["hours_slept"])
+            st.metric("Sleep", format_hours(hours_slept))
+            if sleep_target_hours > 0:
+                st.progress(
+                    min(hours_slept / sleep_target_hours, 1.0),
+                    text=f"{format_hours(hours_slept)} of {format_hours(sleep_target_hours)}",
+                )
+        else:
+            st.metric("Sleep", "Not logged")
 
     if todays_entries.empty:
         st.info("No food logged for this date yet.")
@@ -390,5 +492,46 @@ with weekly_tab:
                     ),
                 },
             )
+
+    st.subheader("Water & Sleep")
+
+    water_summary = summarize_week_water(water_entries, week_start, week_end, water_target_ml)
+    sleep_summary = summarize_week_sleep(sleep_entries, week_start, week_end, sleep_target_hours)
+
+    if water_summary["days_logged"] == 0 and sleep_summary["nights_logged"] == 0:
+        st.info("No water or sleep logged during this week yet.")
+    else:
+        wellness_column_one, wellness_column_two = st.columns(2)
+
+        with wellness_column_one:
+            st.metric(
+                "Average water per logged day",
+                format_ml(water_summary["average_ml"])
+                if water_summary["days_logged"]
+                else "Not logged",
+            )
+            if water_summary["days_logged"]:
+                daily_water = water_summary["daily_totals"]
+                if not daily_water.empty:
+                    st.plotly_chart(
+                        create_week_water_chart(daily_water, water_target_ml),
+                        use_container_width=True,
+                    )
+
+        with wellness_column_two:
+            st.metric(
+                "Average sleep per logged night",
+                format_hours(sleep_summary["average_hours"])
+                if sleep_summary["nights_logged"]
+                else "Not logged",
+            )
+            if sleep_summary["nights_logged"]:
+                week_sleep_entries = filter_entries_by_date_range(
+                    sleep_entries, week_start, week_end
+                )
+                st.plotly_chart(
+                    create_week_sleep_chart(week_sleep_entries, sleep_target_hours),
+                    use_container_width=True,
+                )
 
 st.caption(TAG_DISCLAIMER)
