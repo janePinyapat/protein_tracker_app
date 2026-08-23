@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 64" role="img" aria-label="Gains &amp; Glow">
+<title>Gains &amp; Glow</title>
+<style>
+.mauve{fill:#6b3547}
+.gold{fill:#c98a6b}
+@media (prefers-color-scheme: dark){
+.mauve{fill:#f4c9ce}
+.gold{fill:#e0b08e}
+}
+</style>
+<text x="10" y="46" font-size="48" font-weight="600" font-family="Georgia, 'Playfair Display', 'Times New Roman', serif">
+<tspan class="mauve">Gains </tspan><tspan class="gold">&amp;</tspan><tspan class="mauve"> Glow</tspan>
+</text>
+</svg>

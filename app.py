@@ -4,6 +4,7 @@ from database import get_user_profile, initialize_database
 
 
 st.set_page_config(page_title="Protein & Recovery Tracker", layout="wide")
+st.logo("assets/logo.svg", size="large")
 
 initialize_database()
 

@@ -1,7 +1,7 @@
 import pandas as pd
 import streamlit as st
 
-from database import get_protein_goals, get_user_profile
+from database import get_protein_goals, get_user_profile, get_wellness_goals
 from nutrition_targets import (
     BMI_SOURCE_NOTE,
     SOURCES_NOTE,
@@ -11,6 +11,7 @@ from nutrition_targets import (
     get_bmi_category,
 )
 from user_profile import DIET_TYPES, PURPOSES, save_profile_and_targets
+from wellness import format_hours, format_ml
 
 
 st.title("Profile")
@@ -169,8 +170,10 @@ st.markdown(
 )
 
 
-def render_stat_card(column, label, value, badge=None, caption=None):
-    """Render one small stat card — label, value, optional badge and caption."""
+def render_stat_card(
+    column, label, value, badge=None, caption=None, link_page=None, link_label=None
+):
+    """Render one small stat card — label, value, optional badge, caption, and link."""
     badge_html = f'<span class="ptr-badge">{badge}</span>' if badge else ""
     caption_html = f'<div class="ptr-stat-caption">{caption}</div>' if caption else ""
     with column:
@@ -184,6 +187,8 @@ def render_stat_card(column, label, value, badge=None, caption=None):
             """,
             unsafe_allow_html=True,
         )
+        if link_page:
+            st.page_link(link_page, label=link_label)
 
 
 profile = get_user_profile()
@@ -213,10 +218,14 @@ if not goals.empty:
         training_protein = training_row.iloc[0]["daily_target_grams"]
     fiber_value = goals.iloc[0]["fiber_target_grams"]
 
-stat_columns = st.columns(5)
+wellness_goals = get_wellness_goals()
+water_target_ml = wellness_goals["water_target_ml"] if wellness_goals else None
+sleep_target_hours = wellness_goals["sleep_target_hours"] if wellness_goals else None
+
+body_columns = st.columns(3)
 
 render_stat_card(
-    stat_columns[0],
+    body_columns[0],
     "Weight",
     f"{profile['weight_value']:.0f} {profile['weight_unit']}"
     if profile and profile["weight_value"]
@@ -224,7 +233,7 @@ render_stat_card(
 )
 
 render_stat_card(
-    stat_columns[1],
+    body_columns[1],
     "Height",
     f"{profile['height_value']:.0f} {profile['height_unit']}"
     if profile and profile["height_value"]
@@ -232,12 +241,19 @@ render_stat_card(
 )
 
 render_stat_card(
-    stat_columns[2],
+    body_columns[2],
     "BMI",
     bmi if bmi else "—",
     badge=bmi_category if bmi else None,
     caption=None if bmi else "Add weight & height",
 )
+
+if bmi:
+    st.caption(BMI_SOURCE_NOTE)
+
+st.markdown("<div style='height: 0.5rem'></div>", unsafe_allow_html=True)
+
+target_columns = st.columns(4)
 
 if pd.notna(rest_protein) and pd.notna(training_protein):
     protein_value = (
@@ -251,17 +267,30 @@ else:
     protein_caption = None
 
 render_stat_card(
-    stat_columns[3], "Protein target", protein_value, caption=protein_caption
+    target_columns[0], "Protein target", protein_value, caption=protein_caption
 )
 
 render_stat_card(
-    stat_columns[4],
+    target_columns[1],
     "Fiber target",
     f"{int(fiber_value)} g" if pd.notna(fiber_value) else "Not set",
 )
 
-if bmi:
-    st.caption(BMI_SOURCE_NOTE)
+render_stat_card(
+    target_columns[2],
+    "Water target",
+    format_ml(water_target_ml) if water_target_ml else "Not set",
+    link_page="pages/log_water.py",
+    link_label="Log Water",
+)
+
+render_stat_card(
+    target_columns[3],
+    "Sleep target",
+    format_hours(sleep_target_hours) if sleep_target_hours else "Not set",
+    link_page="pages/log_sleep.py",
+    link_label="Log Sleep",
+)
 
 if not goals.empty:
     st.dataframe(
