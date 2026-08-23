@@ -27,11 +27,18 @@ adapted for nutrition instead of money.
 - Set separate daily protein and fiber targets for rest days and training
   days, and get **breakfast/lunch/dinner recipe ideas from Spoonacular**
   each day, sized to whatever's left of today's target
+- **Log Water**: one-tap quick-add buttons (+250 ml, +500 ml) or a custom
+  amount in ml/fl oz, an optional daily target with a progress bar, and a
+  saved-entries table you can filter and delete from
+- **Log Sleep**: log hours slept for any date (re-logging the same date
+  updates it instead of duplicating), optional notes, and an optional daily
+  sleep target
 - **Daily dashboard**: macro totals, calorie-by-macro split, protein by
-  source, macros by meal, and your labels for the day
+  source, macros by meal, your labels for the day, and today's water/sleep
+  against your targets
 - **Weekly dashboard**: days logged, average macros per logged day, days
-  meeting your protein goal, a full Monday–Sunday chart, and your labels for
-  the week
+  meeting your protein goal, a full Monday–Sunday chart, your labels for
+  the week, and average water/sleep per logged day with a weekly chart
 - Filter and delete saved food entries by date, meal, source, or label
 - Demo data included for portfolio use
 
@@ -44,10 +51,13 @@ protein-recovery-tracker/
 │   ├── profile.py           (diet type, purpose, weight/height — first page)
 │   ├── onboarding.py        (first-run version of the profile page)
 │   ├── meal_recommendations.py (meal ideas + protein/fiber target form)
-│   ├── overview.py          (Daily / Weekly dashboard)
-│   └── log_food.py          (log entries + food-database lookup + AI photo)
+│   ├── log_food.py          (log entries + food-database lookup + AI photo)
+│   ├── log_water.py         (quick-add water logging + target)
+│   ├── log_sleep.py         (sleep logging + target)
+│   └── overview.py          (Daily / Weekly dashboard)
 ├── database.py
 ├── analytics.py
+├── wellness.py             (water/sleep conversion + weekly averaging)
 ├── user_profile.py        (profile vocabulary + tag/target personalization)
 ├── nutrition_targets.py   (protein/fiber target calculation + sources)
 ├── livsmedelsverket_api.py (Swedish Food Agency client)
@@ -180,6 +190,26 @@ uses about 3 per generation).
   prompts you to set one first (in the "Set Daily Targets" section further
   down the same page) rather than guessing at what to recommend.
 
+## Water & Sleep Logging
+
+Two dedicated pages, following the same "you set your own numbers" philosophy
+as protein/fiber targets — nothing is auto-calculated.
+
+**Log Water** — tap "+250 ml" or "+500 ml" to log instantly (no form), or
+open "Log a custom amount or a different date" for any other amount in ml or
+fl oz. Today's total is shown with a progress bar toward your water target,
+if you've set one. Saved entries can be filtered by date and deleted.
+
+**Log Sleep** — pick a date (defaults to today) and enter hours slept, with
+an optional note. Logging the same date again updates that entry rather than
+creating a duplicate, since sleep is naturally one entry per night. Saved
+entries are listed most-recent-first and can be deleted.
+
+Both pages have a "Set your target" form at the bottom — a single number
+(daily water in ml, daily sleep in hours) you set yourself, same as the
+protein/fiber targets. Both targets, plus today's/this week's water and
+sleep, appear on the Dashboard alongside your macros.
+
 ## Profile & Suggested Targets
 
 The Profile page (first in the nav, and shown once automatically on first
@@ -219,7 +249,7 @@ your doctor.
 
 SQLite file `protein_tracker.db`, created locally, ignored by Git.
 
-Five tables:
+Eight tables:
 
 - `food_log` — one row per food entry (description, protein/carbs/fat/fiber
   grams, calories, meal_type, protein_source, log_date)
@@ -232,6 +262,11 @@ Five tables:
   recommending the same recipe again within the repeat-avoidance window)
 - `user_profile` — a single row (diet type, purposes, optional weight) set
   on the Profile page
+- `water_log` — one row per water entry (amount_ml, log_date)
+- `sleep_log` — one row per date logged (`log_date` is unique; re-logging a
+  date updates the existing row instead of adding a new one)
+- `wellness_goals` — a single row (`water_target_ml`, `sleep_target_hours`)
+  set from the Log Water / Log Sleep pages
 
 `database.migrate_database()` adds the macro and fiber-target columns to a
 database created by an earlier version of this app, without touching rows
