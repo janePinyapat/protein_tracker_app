@@ -5,6 +5,7 @@ Each test runs against a throwaway database file so the user's real
 """
 
 import sqlite3
+from datetime import date, timedelta
 
 import pandas as pd
 
@@ -580,13 +581,19 @@ def test_migration_is_idempotent(tmp_path, monkeypatch):
 
 
 def test_seed_dummy_data_is_idempotent(temp_database):
-    database.seed_dummy_data()
-    first_count = len(database.get_all_food_entries())
+    anchor = date(2026, 8, 24)
 
-    database.seed_dummy_data()
-    second_count = len(database.get_all_food_entries())
+    database.seed_dummy_data(anchor_date=anchor)
+    first_food_count = len(database.get_all_food_entries())
+    first_water_count = len(database.get_all_water_entries())
+    first_sleep_count = len(database.get_all_sleep_entries())
 
-    assert first_count == second_count == len(database.DEMO_ENTRIES)
+    database.seed_dummy_data(anchor_date=anchor)
+
+    assert len(database.get_all_food_entries()) == first_food_count
+    assert len(database.get_all_water_entries()) == first_water_count
+    assert len(database.get_all_sleep_entries()) == first_sleep_count
+    assert first_food_count == len(database.build_demo_food_entries(anchor))
 
 
 def test_seed_dummy_data_backfills_legacy_demo_rows(tmp_path, monkeypatch):
@@ -595,22 +602,83 @@ def test_seed_dummy_data_backfills_legacy_demo_rows(tmp_path, monkeypatch):
     monkeypatch.setattr(database, "DATABASE_NAME", str(database_path))
     database.initialize_database()
 
+    anchor = date(2026, 8, 24)
+    (
+        description, _protein, _carbs, _fat, fiber_grams, calories,
+        meal_type, protein_source, log_date, _tags,
+    ) = database.build_demo_food_entries(anchor)[0]
+
     database.add_food_entry(
-        description="Demo lentil soup",
-        protein_grams=14.0,
-        meal_type="Dinner",
-        protein_source="Legumes/Beans",
-        log_date="2026-08-18",
-        calories=220.0,
+        description=description,
+        protein_grams=1.0,
+        meal_type=meal_type,
+        protein_source=protein_source,
+        log_date=log_date,
+        calories=calories,
     )
 
-    database.seed_dummy_data()
+    database.seed_dummy_data(anchor_date=anchor)
 
     entries = database.get_all_food_entries()
-    soup = entries[entries["description"] == "Demo lentil soup"]
+    matching = entries[
+        (entries["description"] == description) & (entries["log_date"] == log_date)
+    ]
 
-    assert len(soup) == 1
-    assert soup.iloc[0]["fiber_grams"] == 11.0
+    assert len(matching) == 1
+    assert matching.iloc[0]["fiber_grams"] == fiber_grams
+
+
+def test_seed_dummy_data_covers_three_weeks(temp_database):
+    anchor = date(2026, 8, 24)
+    database.seed_dummy_data(anchor_date=anchor)
+
+    food_entries = database.get_all_food_entries()
+    water_entries = database.get_all_water_entries()
+    sleep_entries = database.get_all_sleep_entries()
+
+    window_start = (anchor - timedelta(days=database.DEMO_DAYS - 1)).isoformat()
+
+    assert food_entries["log_date"].nunique() == database.DEMO_DAYS
+    assert water_entries["log_date"].nunique() == database.DEMO_DAYS
+    assert len(sleep_entries) == database.DEMO_DAYS
+    assert food_entries["log_date"].min() == window_start
+    assert food_entries["log_date"].max() == anchor.isoformat()
+
+
+def test_seed_dummy_data_sets_wellness_goals_and_profile_when_unset(temp_database):
+    database.seed_dummy_data(anchor_date=date(2026, 8, 24))
+
+    goals = database.get_wellness_goals()
+    profile = database.get_user_profile()
+
+    assert goals["water_target_ml"] == database.DEMO_WATER_TARGET_ML
+    assert goals["sleep_target_hours"] == database.DEMO_SLEEP_TARGET_HOURS
+    assert profile["diet_type"] == "Omnivore"
+
+
+def test_seed_dummy_data_preserves_existing_profile_and_goals(temp_database):
+    database.save_user_profile("Vegan", ["PCOS management"], 60.0, "kg")
+    database.save_wellness_goals(water_target_ml=1800.0, sleep_target_hours=9.0)
+
+    database.seed_dummy_data(anchor_date=date(2026, 8, 24))
+
+    profile = database.get_user_profile()
+    goals = database.get_wellness_goals()
+
+    assert profile["diet_type"] == "Vegan"
+    assert goals["water_target_ml"] == 1800.0
+    assert goals["sleep_target_hours"] == 9.0
+
+
+def test_seed_dummy_data_sets_protein_goals(temp_database):
+    database.seed_dummy_data(anchor_date=date(2026, 8, 24))
+
+    goals = database.get_protein_goals()
+    rest_goal = goals[goals["day_type"] == "Rest day"].iloc[0]
+    training_goal = goals[goals["day_type"] == "Training day"].iloc[0]
+
+    assert rest_goal["daily_target_grams"] == 90.0
+    assert training_goal["daily_target_grams"] == 120.0
 
 
 def pd_isna(value):

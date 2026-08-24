@@ -1,4 +1,5 @@
 import sqlite3
+from datetime import date, timedelta
 
 import pandas as pd
 
@@ -851,63 +852,169 @@ def get_protein_goals():
     return goals
 
 
-# Demo rows: description, protein, carbs, fat, fiber, calories, meal, source,
-# date, tags. Tags here are only sample labels for the demo profile.
-DEMO_ENTRIES = [
-    ("Demo Greek yogurt", 18.0, 9.0, 4.0, 0.0, 150.0, "Breakfast", "Dairy",
-     "2026-08-18", ["Dairy", "Low glycemic"]),
-    ("Demo eggs (3)", 21.0, 1.5, 15.0, 0.0, 240.0, "Breakfast", "Eggs",
-     "2026-08-18", ["Low glycemic"]),
-    ("Demo grilled chicken breast", 35.0, 0.0, 12.0, 0.0, 280.0, "Lunch",
-     "Meat/Poultry", "2026-08-18", ["Home cooked", "Low glycemic"]),
-    ("Demo protein shake", 25.0, 6.0, 3.0, 1.0, 160.0, "Post-workout",
-     "Protein powder", "2026-08-18", ["Processed"]),
-    ("Demo lentil soup", 14.0, 30.0, 4.0, 11.0, 220.0, "Dinner",
-     "Legumes/Beans", "2026-08-18", ["High fiber", "Plant-based", "Home cooked"]),
-    ("Demo cottage cheese", 22.0, 6.0, 5.0, 0.0, 180.0, "Breakfast", "Dairy",
-     "2026-08-19", ["Dairy", "Low glycemic"]),
-    ("Demo salmon fillet", 34.0, 0.0, 18.0, 0.0, 300.0, "Dinner",
-     "Fish/Seafood", "2026-08-19", ["Home cooked", "Low glycemic"]),
-    ("Demo tofu stir-fry", 20.0, 22.0, 11.0, 6.0, 260.0, "Lunch",
-     "Plant-based/Tofu", "2026-08-19", ["Plant-based", "High fiber"]),
-    ("Demo almonds (handful)", 6.0, 6.0, 14.0, 3.5, 160.0, "Snack", "Other",
-     "2026-08-19", ["High fiber", "Plant-based"]),
-    ("Demo protein shake", 25.0, 6.0, 3.0, 1.0, 160.0, "Post-workout",
-     "Protein powder", "2026-08-20", ["Processed"]),
-    ("Demo turkey sandwich", 28.0, 38.0, 10.0, 5.0, 350.0, "Lunch",
-     "Meat/Poultry", "2026-08-20", ["Whole grain", "Gluten"]),
-    ("Demo skyr yogurt", 20.0, 8.0, 0.5, 0.0, 140.0, "Snack", "Dairy",
-     "2026-08-20", ["Dairy", "Low glycemic"]),
-    ("Demo chickpea curry", 16.0, 45.0, 9.0, 12.0, 300.0, "Dinner",
-     "Legumes/Beans", "2026-08-20", ["High fiber", "Plant-based", "Home cooked"]),
+DEMO_DAYS = 21
+
+# Pool entries: description, protein, carbs, fat, fiber, calories, meal type,
+# protein source, tags. Dates are added when building the demo dataset (see
+# build_demo_food_entries), never hardcoded here, so re-running the seed
+# always produces a rolling window ending today.
+DEMO_BREAKFASTS = [
+    ("Demo Greek yogurt with berries", 18.0, 22.0, 4.0, 3.0, 200.0, "Breakfast",
+     "Dairy", ["Dairy", "Low glycemic"]),
+    ("Demo scrambled eggs with spinach", 21.0, 3.0, 15.0, 1.5, 240.0, "Breakfast",
+     "Eggs", ["Low glycemic"]),
+    ("Demo oatmeal with almond butter", 12.0, 45.0, 14.0, 8.0, 380.0, "Breakfast",
+     "Other", ["Whole grain", "High fiber", "Plant-based"]),
+    ("Demo peanut butter toast", 10.0, 24.0, 12.0, 3.0, 260.0, "Breakfast",
+     "Other", ["Whole grain"]),
 ]
 
+DEMO_LUNCHES = [
+    ("Demo grilled chicken breast with rice", 38.0, 40.0, 8.0, 2.0, 400.0, "Lunch",
+     "Meat/Poultry", ["Home cooked"]),
+    ("Demo turkey sandwich on whole grain", 28.0, 38.0, 10.0, 5.0, 350.0, "Lunch",
+     "Meat/Poultry", ["Whole grain"]),
+    ("Demo tofu stir-fry with broccoli", 20.0, 22.0, 11.0, 6.0, 260.0, "Lunch",
+     "Plant-based/Tofu", ["Plant-based", "High fiber"]),
+    ("Demo quinoa and chickpea salad", 15.0, 42.0, 10.0, 9.0, 340.0, "Lunch",
+     "Legumes/Beans", ["Plant-based", "High fiber", "Home cooked"]),
+]
 
-def seed_dummy_data():
-    """Add demo food entries and goals for portfolio demos.
+DEMO_DINNERS = [
+    ("Demo salmon fillet with roasted vegetables", 34.0, 12.0, 18.0, 5.0, 340.0,
+     "Dinner", "Fish/Seafood", ["Home cooked", "High fiber"]),
+    ("Demo lentil soup", 14.0, 30.0, 4.0, 11.0, 220.0, "Dinner",
+     "Legumes/Beans", ["High fiber", "Plant-based", "Home cooked"]),
+    ("Demo chickpea curry with brown rice", 16.0, 45.0, 9.0, 12.0, 300.0, "Dinner",
+     "Legumes/Beans", ["High fiber", "Plant-based", "Home cooked"]),
+    ("Demo grilled shrimp skewers", 30.0, 4.0, 6.0, 0.5, 220.0, "Dinner",
+     "Fish/Seafood", ["Home cooked", "Low glycemic"]),
+]
 
-    Demo rows saved by the protein-only version are topped up with macros and
-    tags instead of being duplicated.
+DEMO_SNACKS = [
+    ("Demo cottage cheese with pineapple", 22.0, 10.0, 5.0, 1.0, 190.0, "Snack",
+     "Dairy", ["Dairy", "Low glycemic"]),
+    ("Demo almonds (handful)", 6.0, 6.0, 14.0, 3.5, 160.0, "Snack", "Other",
+     ["High fiber", "Plant-based"]),
+    ("Demo skyr yogurt", 20.0, 8.0, 0.5, 0.0, 140.0, "Snack", "Dairy",
+     ["Dairy", "Low glycemic"]),
+]
+
+DEMO_POST_WORKOUT = (
+    "Demo protein shake", 25.0, 6.0, 3.0, 1.0, 160.0, "Post-workout",
+    "Protein powder", ["Processed"],
+)
+
+DEMO_WATER_QUICK_AMOUNTS_ML = [250.0, 300.0, 350.0, 500.0]
+DEMO_SLEEP_HOURS_PATTERN = [7.5, 6.5, 8.0, 7.0, 6.0, 8.5, 7.5]
+DEMO_SLEEP_NOTES_BY_DAY_INDEX = {
+    2: "Restless night",
+    10: "Great sleep after a hard training day",
+    16: "Woke up early",
+}
+
+DEMO_PROTEIN_GOALS = [
+    ("Rest day", 90.0, 25.0),
+    ("Training day", 120.0, 30.0),
+]
+DEMO_WATER_TARGET_ML = 2000.0
+DEMO_SLEEP_TARGET_HOURS = 7.5
+
+
+def _is_demo_training_day(day_index):
+    """Roughly 3 training days a week, spread across the week."""
+    return day_index % 7 in (1, 3, 5)
+
+
+def build_demo_food_entries(anchor_date=None):
+    """Build a deterministic 3-week food log ending on ``anchor_date``
+    (default: today) — breakfast/lunch/dinner every day, a post-workout
+    shake on training days, and a snack every third day.
+
+    Returns a list of ``(description, protein_grams, carbs_grams, fat_grams,
+    fiber_grams, calories, meal_type, protein_source, log_date, tags)``
+    tuples, the shape ``seed_dummy_data`` inserts.
+    """
+    anchor_date = anchor_date or date.today()
+    entries = []
+
+    for day_index in range(DEMO_DAYS):
+        log_date = (anchor_date - timedelta(days=DEMO_DAYS - 1 - day_index)).isoformat()
+        meals = [
+            DEMO_BREAKFASTS[day_index % len(DEMO_BREAKFASTS)],
+            DEMO_LUNCHES[day_index % len(DEMO_LUNCHES)],
+            DEMO_DINNERS[day_index % len(DEMO_DINNERS)],
+        ]
+        if _is_demo_training_day(day_index):
+            meals.append(DEMO_POST_WORKOUT)
+        if day_index % 3 == 0:
+            meals.append(DEMO_SNACKS[day_index % len(DEMO_SNACKS)])
+
+        for description, protein, carbs, fat, fiber, calories, meal_type, source, tags in meals:
+            entries.append(
+                (description, protein, carbs, fat, fiber, calories, meal_type,
+                 source, log_date, tags)
+            )
+
+    return entries
+
+
+def build_demo_water_entries(anchor_date=None):
+    """Build 3 weeks of quick-add-style water entries ending on
+    ``anchor_date`` (default: today). Returns a list of ``(amount_ml,
+    log_date)`` tuples."""
+    anchor_date = anchor_date or date.today()
+    entries = []
+
+    for day_index in range(DEMO_DAYS):
+        log_date = (anchor_date - timedelta(days=DEMO_DAYS - 1 - day_index)).isoformat()
+        entry_count = 3 + (day_index % 3)
+        for entry_index in range(entry_count):
+            amount = DEMO_WATER_QUICK_AMOUNTS_ML[
+                (day_index + entry_index) % len(DEMO_WATER_QUICK_AMOUNTS_ML)
+            ]
+            entries.append((amount, log_date))
+
+    return entries
+
+
+def build_demo_sleep_entries(anchor_date=None):
+    """Build 3 weeks of sleep entries ending on ``anchor_date`` (default:
+    today), one per night. Returns a list of ``(log_date, hours_slept,
+    notes)`` tuples."""
+    anchor_date = anchor_date or date.today()
+    entries = []
+
+    for day_index in range(DEMO_DAYS):
+        log_date = (anchor_date - timedelta(days=DEMO_DAYS - 1 - day_index)).isoformat()
+        hours = DEMO_SLEEP_HOURS_PATTERN[day_index % len(DEMO_SLEEP_HOURS_PATTERN)]
+        notes = DEMO_SLEEP_NOTES_BY_DAY_INDEX.get(day_index)
+        entries.append((log_date, hours, notes))
+
+    return entries
+
+
+def seed_dummy_data(anchor_date=None):
+    """Fill in 3 weeks of demo data (food, water, sleep, targets) ending on
+    ``anchor_date`` (default: today), for portfolio/demo use.
+
+    Safe to re-run: food rows are matched by (description, log_date) and
+    topped up rather than duplicated; water/sleep rows for the 3-week demo
+    window are replaced with a fresh set each time rather than appended to,
+    so totals stay correct across repeat runs. A profile and wellness
+    targets are only added if none exist yet, so it never overwrites
+    something already set on purpose.
     """
     initialize_database()
+    anchor_date = anchor_date or date.today()
 
     connection = create_connection()
     cursor = connection.cursor()
 
-    for entry in DEMO_ENTRIES:
-        (
-            description,
-            protein_grams,
-            carbs_grams,
-            fat_grams,
-            fiber_grams,
-            calories,
-            meal_type,
-            protein_source,
-            log_date,
-            tags,
-        ) = entry
-
+    for (
+        description, protein_grams, carbs_grams, fat_grams, fiber_grams,
+        calories, meal_type, protein_source, log_date, tags,
+    ) in build_demo_food_entries(anchor_date):
         existing = cursor.execute(
             "SELECT id FROM food_log WHERE description = ? AND log_date = ?",
             (description, log_date),
@@ -933,15 +1040,8 @@ def seed_dummy_data():
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
-                    description,
-                    protein_grams,
-                    calories,
-                    carbs_grams,
-                    fat_grams,
-                    fiber_grams,
-                    meal_type,
-                    protein_source,
-                    log_date,
+                    description, protein_grams, calories, carbs_grams, fat_grams,
+                    fiber_grams, meal_type, protein_source, log_date,
                 ),
             )
             entry_id = cursor.lastrowid
@@ -952,10 +1052,28 @@ def seed_dummy_data():
                 (entry_id, tag),
             )
 
-    demo_goals = [
-        ("Rest day", 90.0, 25.0),
-        ("Training day", 120.0, 30.0),
-    ]
+    demo_window_start = (anchor_date - timedelta(days=DEMO_DAYS - 1)).isoformat()
+
+    cursor.execute(
+        "DELETE FROM water_log WHERE log_date >= ? AND log_date <= ?",
+        (demo_window_start, anchor_date.isoformat()),
+    )
+    cursor.executemany(
+        "INSERT INTO water_log (amount_ml, log_date) VALUES (?, ?)",
+        build_demo_water_entries(anchor_date),
+    )
+
+    cursor.executemany(
+        """
+        INSERT INTO sleep_log (log_date, hours_slept, notes)
+        VALUES (?, ?, ?)
+        ON CONFLICT(log_date)
+        DO UPDATE SET
+            hours_slept = excluded.hours_slept,
+            notes = excluded.notes
+        """,
+        build_demo_sleep_entries(anchor_date),
+    )
 
     cursor.executemany(
         """
@@ -967,11 +1085,27 @@ def seed_dummy_data():
             fiber_target_grams = excluded.fiber_target_grams,
             updated_at = CURRENT_TIMESTAMP
         """,
-        demo_goals,
+        DEMO_PROTEIN_GOALS,
     )
 
     connection.commit()
     connection.close()
+
+    if get_wellness_goals() is None:
+        save_wellness_goals(
+            water_target_ml=DEMO_WATER_TARGET_ML,
+            sleep_target_hours=DEMO_SLEEP_TARGET_HOURS,
+        )
+
+    if get_user_profile() is None:
+        save_user_profile(
+            diet_type="Omnivore",
+            purposes=["Strength training / muscle recovery"],
+            weight_value=65.0,
+            weight_unit="kg",
+            height_value=170.0,
+            height_unit="cm",
+        )
 
 
 if __name__ == "__main__":
