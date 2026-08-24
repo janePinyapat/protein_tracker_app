@@ -1,12 +1,12 @@
 # Protein & Recovery Tracker
 
-Built for women's nutrition, hydration, and recovery. A local web app for
-tracking daily macros (protein, carbs, fat, fiber), water, and sleep to
-support exercise recovery or PCOS-related nutrition goals — with your own
-descriptive labels instead of the app judging what's "good" or "bad".
-Wherever a source guideline differentiates by sex (fiber, water), this app
-uses the figures published for adult women; see [Profile & Suggested
-Targets](#profile--suggested-targets) for exact sources.
+Built for women's nutrition, hydration, sleep, and recovery. A local web
+app for tracking daily macros (protein, carbs, fat, fiber), water, and
+sleep to support exercise recovery or PCOS-related nutrition goals — with
+your own descriptive labels instead of the app judging what's "good" or
+"bad". Wherever a source guideline differentiates by sex (fiber, water),
+this app uses the figures published for adult women; see [Profile &
+Suggested Targets](#profile--suggested-targets) for exact sources.
 
 Built with Python, Streamlit, SQLite, pandas, and Plotly — same structure
 as the [Student Budget Tracker](../student-budget-tracker-option-2-mvp),

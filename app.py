@@ -23,9 +23,9 @@ else:
 selected_page = st.navigation(pages)
 
 st.sidebar.caption(
-    "Built for women's nutrition, hydration, and recovery — protein, "
-    "fiber, and water targets use guidelines published for women wherever "
-    "the source differentiates by sex."
+    "Built for women's nutrition, hydration, sleep, and recovery — "
+    "protein, fiber, and water targets use guidelines published for women "
+    "wherever the source differentiates by sex."
 )
 
 selected_page.run()

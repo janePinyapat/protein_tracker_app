@@ -17,8 +17,9 @@ from wellness import format_hours, format_ml
 
 st.title("Profile")
 st.caption(
-    "Built for women's nutrition, hydration, and recovery — targets use "
-    "guidelines published for women wherever the source differentiates by sex."
+    "Built for women's nutrition, hydration, sleep, and recovery — "
+    "protein, fiber, and water targets use guidelines published for women "
+    "wherever the source differentiates by sex."
 )
 st.write(
     "Your diet type and purpose affect which labels are suggested first "
