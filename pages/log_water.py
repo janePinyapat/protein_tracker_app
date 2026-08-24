@@ -76,6 +76,30 @@ with st.expander("Log a custom amount or a different date"):
                 st.success(f"Added {format_ml(amount_ml)}.")
                 st.rerun()
 
+st.subheader("Set your water target")
+st.write(
+    "An optional daily target you set yourself — the app doesn't calculate "
+    "or recommend this number."
+)
+
+with st.form("water_goal_form"):
+    target_value = st.number_input(
+        "Daily water target (ml)",
+        min_value=0.0,
+        step=100.0,
+        value=float(water_target_ml),
+    )
+
+    submitted_goal = st.form_submit_button("Save target")
+
+    if submitted_goal:
+        save_wellness_goals(
+            water_target_ml=target_value if target_value > 0 else None,
+            sleep_target_hours=goals["sleep_target_hours"] if goals else None,
+        )
+        st.success("Water target saved.")
+        st.rerun()
+
 st.subheader("Saved entries")
 
 water_entries = get_all_water_entries()
@@ -108,30 +132,4 @@ else:
     if st.button("Delete selected entry"):
         delete_water_entry(int(entry_to_delete))
         st.success(f"Deleted entry {entry_to_delete}.")
-        st.rerun()
-
-st.divider()
-
-st.subheader("Set your water target")
-st.write(
-    "An optional daily target you set yourself — the app doesn't calculate "
-    "or recommend this number."
-)
-
-with st.form("water_goal_form"):
-    target_value = st.number_input(
-        "Daily water target (ml)",
-        min_value=0.0,
-        step=100.0,
-        value=float(water_target_ml),
-    )
-
-    submitted_goal = st.form_submit_button("Save target")
-
-    if submitted_goal:
-        save_wellness_goals(
-            water_target_ml=target_value if target_value > 0 else None,
-            sleep_target_hours=goals["sleep_target_hours"] if goals else None,
-        )
-        st.success("Water target saved.")
         st.rerun()
