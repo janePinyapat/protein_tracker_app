@@ -20,7 +20,10 @@ from meal_recommendation_api import (
 )
 
 
-def make_recipe(recipe_id, title, protein, fiber, calories, ready=20, servings=2, source="Site"):
+def make_recipe(
+    recipe_id, title, protein, fiber, calories, ready=20, servings=2, source="Site",
+    image="https://img.spoonacular.com/recipes/example.jpg",
+):
     return {
         "id": recipe_id,
         "title": title,
@@ -28,6 +31,7 @@ def make_recipe(recipe_id, title, protein, fiber, calories, ready=20, servings=2
         "servings": servings,
         "sourceUrl": f"https://example.com/{recipe_id}",
         "sourceName": source,
+        "image": image,
         "nutrition": {
             "nutrients": [
                 {"name": "Calories", "amount": calories, "unit": "kcal"},
@@ -163,6 +167,40 @@ def test_search_recipes_includes_diet_param_when_given(patched_requests):
     search_recipes("Breakfast", 10.0, 30.0, 3.0, "test-key", diet="vegetarian")
 
     assert stub.calls[0]["params"]["diet"] == "vegetarian"
+
+
+def test_search_recipes_includes_servings_params_when_given(patched_requests):
+    stub = patched_requests(StubRequestsModule(responses=[results_response([])]))
+
+    search_recipes("Breakfast", 10.0, 30.0, 3.0, "test-key", servings=4)
+
+    assert stub.calls[0]["params"]["minServings"] == 4
+    assert stub.calls[0]["params"]["maxServings"] == 4
+
+
+def test_search_recipes_omits_servings_params_when_not_given(patched_requests):
+    stub = patched_requests(StubRequestsModule(responses=[results_response([])]))
+
+    search_recipes("Breakfast", 10.0, 30.0, 3.0, "test-key")
+
+    assert "minServings" not in stub.calls[0]["params"]
+    assert "maxServings" not in stub.calls[0]["params"]
+
+
+def test_search_recipes_includes_max_ready_time_when_given(patched_requests):
+    stub = patched_requests(StubRequestsModule(responses=[results_response([])]))
+
+    search_recipes("Breakfast", 10.0, 30.0, 3.0, "test-key", max_ready_time=30)
+
+    assert stub.calls[0]["params"]["maxReadyTime"] == 30
+
+
+def test_search_recipes_omits_max_ready_time_when_not_given(patched_requests):
+    stub = patched_requests(StubRequestsModule(responses=[results_response([])]))
+
+    search_recipes("Breakfast", 10.0, 30.0, 3.0, "test-key")
+
+    assert "maxReadyTime" not in stub.calls[0]["params"]
 
 
 def test_search_recipes_passes_offset_through(patched_requests):
@@ -325,7 +363,27 @@ def test_fetch_meal_recommendations_builds_three_meals(patched_requests):
     assert payload["meals"][0]["estimated_calories"] == 300
     assert payload["meals"][0]["source_url"] == "https://example.com/1"
     assert payload["meals"][0]["description"] == "Ready in 20 min · serves 2"
+    assert payload["meals"][0]["image_url"] == "https://img.spoonacular.com/recipes/example.jpg"
     assert payload["notes"] == ""
+
+
+def test_fetch_meal_recommendations_passes_servings_and_max_ready_time_through(
+    patched_requests,
+):
+    responses = [
+        results_response([make_recipe(1, "Breakfast Recipe", 20.0, 4.0, 300)]),
+        results_response([make_recipe(2, "Lunch Recipe", 28.0, 7.0, 450)]),
+        results_response([make_recipe(3, "Dinner Recipe", 32.0, 8.0, 520)]),
+    ]
+    stub = patched_requests(StubRequestsModule(responses=responses))
+
+    fetch_meal_recommendations(
+        100.0, 20.0, api_key="test-key", servings=3, max_ready_time=20
+    )
+
+    assert all(call["params"]["minServings"] == 3 for call in stub.calls)
+    assert all(call["params"]["maxServings"] == 3 for call in stub.calls)
+    assert all(call["params"]["maxReadyTime"] == 20 for call in stub.calls)
 
 
 def test_fetch_meal_recommendations_passes_diet_filter_through(patched_requests):

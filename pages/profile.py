@@ -1,7 +1,12 @@
 import pandas as pd
 import streamlit as st
 
-from database import get_protein_goals, get_user_profile, get_wellness_goals
+from database import (
+    get_protein_goals,
+    get_user_profile,
+    get_wellness_goals,
+    save_protein_goal,
+)
 from nutrition_targets import (
     BMI_SOURCE_NOTE,
     calculate_bmi,
@@ -13,11 +18,26 @@ from user_profile import DIET_TYPES, PURPOSES, save_profile_and_targets
 from wellness import format_hours, format_ml
 
 
+DAY_TYPES = ["Rest day", "Training day"]
+
+
+def get_saved_targets(existing_goals, day_type):
+    """Read the saved protein and fiber targets for a day type."""
+    protein_target = 0.0
+    fiber_target = 0.0
+
+    if not existing_goals.empty:
+        matching_goal = existing_goals[existing_goals["day_type"] == day_type]
+        if not matching_goal.empty:
+            row = matching_goal.iloc[0]
+            protein_target = float(row["daily_target_grams"] or 0.0)
+            if row.get("fiber_target_grams") is not None:
+                fiber_target = float(row["fiber_target_grams"] or 0.0)
+
+    return protein_target, fiber_target
+
+
 st.title("Profile")
-st.caption(
-    "Built for women's nutrition, hydration, sleep, and recovery — "
-    "protein, fiber, and water targets use guidelines."
-)
 
 profile = get_user_profile()
 default_diet_type = profile["diet_type"] if profile else DIET_TYPES[0]
@@ -265,13 +285,20 @@ else:
     protein_caption = None
 
 render_stat_card(
-    target_columns[0], "Protein target", protein_value, caption=protein_caption
+    target_columns[0],
+    "Protein target",
+    protein_value,
+    caption=protein_caption,
+    link_page="pages/log_food.py",
+    link_label="Log Protein",
 )
 
 render_stat_card(
     target_columns[1],
     "Fiber target",
     f"{int(fiber_value)} g" if pd.notna(fiber_value) else "Not set",
+    link_page="pages/log_food.py",
+    link_label="Log Fiber",
 )
 
 render_stat_card(
@@ -307,3 +334,48 @@ if not goals.empty:
     )
 else:
     st.info("Add your weight above to get suggested protein and fiber targets.")
+
+st.subheader("Set Daily Targets")
+st.write(
+    "Enter your own daily protein and fiber targets for rest days and "
+    "training days — this form doesn't calculate anything from what you "
+    "type here. (For starting-point numbers calculated from your weight "
+    "and purpose instead, use the weight/height form above.)"
+)
+
+with st.form("set_goal_form"):
+    goal_day_type = st.selectbox("Day type to edit", DAY_TYPES, key="goal_day_type")
+
+    default_protein, default_fiber = get_saved_targets(goals, goal_day_type)
+
+    target_column_one, target_column_two = st.columns(2)
+
+    with target_column_one:
+        daily_target_grams = st.number_input(
+            "Daily protein target (grams)",
+            min_value=0.0,
+            step=5.0,
+            value=default_protein,
+        )
+
+    with target_column_two:
+        fiber_target_grams = st.number_input(
+            "Daily fiber target (grams, optional)",
+            min_value=0.0,
+            step=1.0,
+            value=default_fiber,
+        )
+
+    submitted_goal = st.form_submit_button("Save targets")
+
+    if submitted_goal:
+        if daily_target_grams <= 0:
+            st.error("Daily protein target must be greater than zero.")
+        else:
+            save_protein_goal(
+                goal_day_type,
+                daily_target_grams,
+                fiber_target_grams if fiber_target_grams > 0 else None,
+            )
+            st.success(f"Saved {goal_day_type} targets.")
+            st.rerun()

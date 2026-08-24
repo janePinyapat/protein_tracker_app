@@ -260,6 +260,7 @@ def test_save_meal_recommendations_round_trips(temp_database):
             "calories": 350.0,
             "source_title": "Example",
             "source_url": "https://example.com/yogurt",
+            "image_url": "https://img.spoonacular.com/recipes/yogurt.jpg",
         },
         {
             "meal_type": "Lunch",
@@ -271,6 +272,7 @@ def test_save_meal_recommendations_round_trips(temp_database):
             "calories": 420.0,
             "source_title": "Example",
             "source_url": "https://example.com/lentils",
+            "image_url": "https://img.spoonacular.com/recipes/lentils.jpg",
         },
     ]
 
@@ -282,6 +284,17 @@ def test_save_meal_recommendations_round_trips(temp_database):
     assert saved.iloc[0]["meal_name"] == "Yogurt bowl"
     assert saved.iloc[0]["protein_grams"] == 25.0
     assert saved.iloc[0]["recipe_id"] == 111
+    assert saved.iloc[0]["image_url"] == "https://img.spoonacular.com/recipes/yogurt.jpg"
+
+
+def test_save_meal_recommendations_defaults_image_url_to_none(temp_database):
+    database.save_meal_recommendations(
+        "2026-08-23",
+        [{"meal_type": "Breakfast", "meal_name": "No image given", "protein_grams": 10.0}],
+    )
+
+    saved = database.get_meal_recommendations("2026-08-23")
+    assert pd.isna(saved.iloc[0]["image_url"])
 
 
 def test_save_meal_recommendations_defaults_recipe_id_to_none(temp_database):
@@ -485,6 +498,46 @@ def test_migration_adds_recipe_id_column_to_legacy_meal_recommendations(
     assert saved.iloc[0]["meal_name"] == "Legacy Yogurt Bowl"
     assert pd.isna(saved.iloc[0]["recipe_id"])
     assert database.get_recent_recommended_recipe_ids("2026-08-01") == []
+
+
+def test_migration_adds_image_url_column_to_legacy_meal_recommendations(
+    tmp_path, monkeypatch
+):
+    """A cached recommendation saved before image_url existed must survive
+    the migration and keep working — image_url just comes back as None."""
+    database_path = tmp_path / "legacy_meal_recommendations_image.db"
+    monkeypatch.setattr(database, "DATABASE_NAME", str(database_path))
+
+    connection = sqlite3.connect(str(database_path))
+    connection.executescript(
+        """
+        CREATE TABLE meal_recommendations (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            rec_date TEXT NOT NULL,
+            meal_type TEXT NOT NULL,
+            recipe_id INTEGER,
+            meal_name TEXT NOT NULL,
+            description TEXT,
+            protein_grams REAL,
+            fiber_grams REAL,
+            calories REAL,
+            source_title TEXT,
+            source_url TEXT,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE (rec_date, meal_type)
+        );
+        INSERT INTO meal_recommendations (rec_date, meal_type, meal_name, protein_grams)
+        VALUES ('2026-08-20', 'Breakfast', 'Legacy Yogurt Bowl', 20.0);
+        """
+    )
+    connection.commit()
+    connection.close()
+
+    database.initialize_database()
+
+    saved = database.get_meal_recommendations("2026-08-20")
+    assert saved.iloc[0]["meal_name"] == "Legacy Yogurt Bowl"
+    assert pd.isna(saved.iloc[0]["image_url"])
 
 
 def test_migration_adds_macro_columns_to_legacy_database(tmp_path, monkeypatch):

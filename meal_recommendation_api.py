@@ -23,6 +23,12 @@ Candidates are paged through (via ``offset``) to find one outside that list;
 if a diet+meal-type combination has too few matching recipes to avoid every
 recent id, this falls back to allowing a repeat rather than returning
 nothing, and says so in the returned ``notes``.
+
+Callers can also pass ``servings`` (an exact match against Spoonacular's
+``minServings``/``maxServings``) and ``max_ready_time`` (Spoonacular's
+``maxReadyTime``, in minutes) — both apply the same way to all three meals.
+Each returned meal includes ``image_url`` straight from Spoonacular's
+``image`` field, for display only (not re-hosted or downloaded).
 """
 
 import os
@@ -163,10 +169,19 @@ def search_recipes(
     min_fiber,
     api_key,
     diet=None,
+    servings=None,
+    max_ready_time=None,
     offset=0,
     number=CANDIDATES_PER_MEAL,
 ):
-    """Search Spoonacular for recipes of one meal type within a protein/fiber range."""
+    """Search Spoonacular for recipes of one meal type within a protein/fiber range.
+
+    ``servings`` filters to recipes yielding exactly that many servings
+    (Spoonacular's ``minServings``/``maxServings`` set to the same value).
+    ``max_ready_time`` filters to recipes ready within that many minutes
+    (Spoonacular's ``maxReadyTime``). Both are omitted from the request
+    when not given, applying no filter.
+    """
     params = {
         "type": MEAL_TYPE_TO_SPOONACULAR_TYPE[meal_type],
         "minProtein": round(min_protein, 1),
@@ -178,12 +193,28 @@ def search_recipes(
     }
     if diet:
         params["diet"] = diet
+    if servings:
+        params["minServings"] = servings
+        params["maxServings"] = servings
+    if max_ready_time:
+        params["maxReadyTime"] = max_ready_time
 
     payload = _get(f"{BASE_URL}/complexSearch", params, api_key)
     return payload.get("results", [])
 
 
-def find_candidate(meal_type, min_protein, max_protein, min_fiber, api_key, diet, exclude_ids, used_ids):
+def find_candidate(
+    meal_type,
+    min_protein,
+    max_protein,
+    min_fiber,
+    api_key,
+    diet,
+    exclude_ids,
+    used_ids,
+    servings=None,
+    max_ready_time=None,
+):
     """Find a recipe for one meal, preferring one outside ``exclude_ids``.
 
     Pages through results (via ``offset``) looking for a match that isn't in
@@ -198,7 +229,15 @@ def find_candidate(meal_type, min_protein, max_protein, min_fiber, api_key, diet
 
     for _ in range(MAX_REPEAT_AVOIDANCE_PAGES):
         candidates = search_recipes(
-            meal_type, min_protein, max_protein, min_fiber, api_key, diet=diet, offset=offset
+            meal_type,
+            min_protein,
+            max_protein,
+            min_fiber,
+            api_key,
+            diet=diet,
+            servings=servings,
+            max_ready_time=max_ready_time,
+            offset=offset,
         )
         if offset == 0:
             first_page = candidates
@@ -235,6 +274,8 @@ def fetch_meal_recommendations(
     diet_type=None,
     exclude_recipe_ids=None,
     api_key=None,
+    servings=None,
+    max_ready_time=None,
 ):
     """Find one Spoonacular recipe each for breakfast, lunch, and dinner,
     sized to a share of today's remaining protein/fiber target.
@@ -243,7 +284,8 @@ def fetch_meal_recommendations(
     internally to Spoonacular's ``diet`` filter, so results are excluded by
     Spoonacular itself rather than fetched and then discarded.
     ``exclude_recipe_ids`` are recipe ids to steer away from repeating (see
-    ``find_candidate``).
+    ``find_candidate``). ``servings`` and ``max_ready_time`` apply the same
+    way to all three meals (see ``search_recipes``).
 
     Returns ``{"meals": [...], "notes": ...}``.
     """
@@ -270,7 +312,16 @@ def fetch_meal_recommendations(
         min_fiber = max(target["fiber_grams"] - FIBER_FLOOR_SLACK_GRAMS, 0)
 
         pick, was_repeat = find_candidate(
-            meal_type, min_protein, max_protein, min_fiber, api_key, diet, exclude_ids, used_ids
+            meal_type,
+            min_protein,
+            max_protein,
+            min_fiber,
+            api_key,
+            diet,
+            exclude_ids,
+            used_ids,
+            servings=servings,
+            max_ready_time=max_ready_time,
         )
         if pick is None:
             continue
@@ -292,6 +343,7 @@ def fetch_meal_recommendations(
                 "estimated_calories": extract_nutrient(nutrients, "Calories"),
                 "source_title": pick.get("sourceName") or pick.get("title"),
                 "source_url": pick.get("sourceUrl"),
+                "image_url": pick.get("image"),
             }
         )
 

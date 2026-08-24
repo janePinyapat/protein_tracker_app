@@ -141,6 +141,7 @@ def create_meal_recommendations_table():
             calories REAL,
             source_title TEXT,
             source_url TEXT,
+            image_url TEXT,
             created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
             UNIQUE (rec_date, meal_type)
         )
@@ -265,6 +266,10 @@ def migrate_database():
         cursor.execute(
             "ALTER TABLE meal_recommendations ADD COLUMN recipe_id INTEGER"
         )
+    if "image_url" not in meal_recommendation_columns:
+        cursor.execute(
+            "ALTER TABLE meal_recommendations ADD COLUMN image_url TEXT"
+        )
 
     connection.commit()
     connection.close()
@@ -369,7 +374,7 @@ def save_meal_recommendations(rec_date, meals):
 
     ``meals`` is a list of dicts with keys: meal_type, recipe_id, meal_name,
     description, protein_grams, fiber_grams, calories, source_title,
-    source_url.
+    source_url, image_url.
     """
     connection = create_connection()
     cursor = connection.cursor()
@@ -381,9 +386,10 @@ def save_meal_recommendations(rec_date, meals):
             """
             INSERT INTO meal_recommendations (
                 rec_date, meal_type, recipe_id, meal_name, description,
-                protein_grams, fiber_grams, calories, source_title, source_url
+                protein_grams, fiber_grams, calories, source_title, source_url,
+                image_url
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 rec_date,
@@ -396,6 +402,7 @@ def save_meal_recommendations(rec_date, meals):
                 meal.get("calories"),
                 meal.get("source_title"),
                 meal.get("source_url"),
+                meal.get("image_url"),
             ),
         )
 
@@ -413,7 +420,8 @@ def get_meal_recommendations(rec_date):
     recommendations = pd.read_sql_query(
         f"""
         SELECT meal_type, recipe_id, meal_name, description, protein_grams,
-               fiber_grams, calories, source_title, source_url, created_at
+               fiber_grams, calories, source_title, source_url, image_url,
+               created_at
         FROM meal_recommendations
         WHERE rec_date = ?
         ORDER BY {MEAL_TYPE_ORDER}

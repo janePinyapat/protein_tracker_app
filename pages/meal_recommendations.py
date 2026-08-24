@@ -12,7 +12,6 @@ from database import (
     get_user_profile,
     initialize_database,
     save_meal_recommendations,
-    save_protein_goal,
 )
 from meal_recommendation_api import (
     DISCLAIMER,
@@ -64,8 +63,8 @@ initialize_database()
 st.title("Meal Recommendations")
 st.write(
     "Real recipes from Spoonacular's database, matched to your diet and to "
-    "help you reach today's protein and fiber target — plus the form to "
-    "set that target."
+    "help you reach today's protein and fiber target — set on the Profile "
+    "page."
 )
 
 today_iso = date.today().isoformat()
@@ -88,8 +87,8 @@ protein_target, fiber_target = get_saved_targets(goals, day_type)
 
 if protein_target <= 0:
     st.info(
-        "Set a protein target below to get meal ideas sized to what you "
-        "still need today."
+        "Set a protein target on the Profile page to get meal ideas sized "
+        "to what you still need today."
     )
 else:
     remaining = calculate_remaining_targets(
@@ -117,6 +116,22 @@ else:
     if already_close:
         st.success("You're already close to today's target — nice work.")
 
+    st.caption("Recipe search options — applied to all three meals")
+    search_option_columns = st.columns(2)
+    with search_option_columns[0]:
+        desired_servings = st.number_input(
+            "Servings", min_value=1, max_value=12, value=2, step=1
+        )
+    with search_option_columns[1]:
+        max_cook_minutes = st.number_input(
+            "Max cook time (minutes)",
+            min_value=0,
+            max_value=240,
+            value=45,
+            step=5,
+            help="0 means no limit.",
+        )
+
     button_label = (
         "Refresh today's meal ideas" if not cached.empty else "Get today's meal ideas"
     )
@@ -138,6 +153,8 @@ else:
                     diet_type=diet_type,
                     exclude_recipe_ids=exclude_recipe_ids,
                     api_key=get_api_key(st.secrets),
+                    servings=desired_servings,
+                    max_ready_time=max_cook_minutes if max_cook_minutes > 0 else None,
                 )
                 meals_to_save = [
                     {
@@ -150,6 +167,7 @@ else:
                         "calories": meal.get("estimated_calories"),
                         "source_title": meal.get("source_title"),
                         "source_url": meal.get("source_url"),
+                        "image_url": meal.get("image_url"),
                     }
                     for meal in payload["meals"]
                     if meal.get("meal_type") in MEAL_TYPES
@@ -176,6 +194,9 @@ else:
         for _, meal in cached.iterrows():
             with st.container(border=True):
                 st.markdown(f"**{meal['meal_type']}: {meal['meal_name']}**")
+
+                if meal.get("image_url"):
+                    st.image(meal["image_url"])
 
                 if meal["description"]:
                     st.write(meal["description"])
@@ -218,77 +239,3 @@ else:
         st.caption(DISCLAIMER)
     else:
         st.info("Click the button above to get today's meal ideas.")
-
-st.divider()
-
-st.subheader("Set Daily Targets")
-st.write(
-    "Enter your own daily protein and fiber targets for rest days and "
-    "training days — this form doesn't calculate anything from what you "
-    "type here. (For starting-point numbers calculated from your weight "
-    "and purpose instead, use the Profile page.)"
-)
-
-existing_goals = get_protein_goals()
-
-with st.form("set_goal_form"):
-    goal_day_type = st.selectbox("Day type to edit", DAY_TYPES, key="goal_day_type")
-
-    default_protein, default_fiber = get_saved_targets(existing_goals, goal_day_type)
-
-    target_column_one, target_column_two = st.columns(2)
-
-    with target_column_one:
-        daily_target_grams = st.number_input(
-            "Daily protein target (grams)",
-            min_value=0.0,
-            step=5.0,
-            value=default_protein,
-        )
-
-    with target_column_two:
-        fiber_target_grams = st.number_input(
-            "Daily fiber target (grams, optional)",
-            min_value=0.0,
-            step=1.0,
-            value=default_fiber,
-        )
-
-    submitted = st.form_submit_button("Save targets")
-
-    if submitted:
-        if daily_target_grams <= 0:
-            st.error("Daily protein target must be greater than zero.")
-        else:
-            save_protein_goal(
-                goal_day_type,
-                daily_target_grams,
-                fiber_target_grams if fiber_target_grams > 0 else None,
-            )
-            st.success(f"Saved {goal_day_type} targets.")
-            st.rerun()
-
-st.subheader("Saved targets")
-
-goals = get_protein_goals()
-
-if goals.empty:
-    st.info("No targets saved yet.")
-else:
-    st.dataframe(
-        goals[
-            ["day_type", "daily_target_grams", "fiber_target_grams", "updated_at"]
-        ],
-        use_container_width=True,
-        hide_index=True,
-        column_config={
-            "day_type": "Day type",
-            "daily_target_grams": st.column_config.NumberColumn(
-                "Protein target (g)", format="%.0f"
-            ),
-            "fiber_target_grams": st.column_config.NumberColumn(
-                "Fiber target (g)", format="%.0f"
-            ),
-            "updated_at": "Updated",
-        },
-    )
