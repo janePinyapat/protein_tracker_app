@@ -41,8 +41,7 @@ DIET_TYPES = [
     "Omnivore",
     "Vegetarian",
     "Vegan",
-    "Pescatarian",
-    "Other / prefer not to say",
+    "Pescatarian"
 ]
 
 PURPOSES = [
