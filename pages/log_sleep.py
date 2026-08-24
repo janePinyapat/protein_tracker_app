@@ -66,6 +66,31 @@ with st.form("sleep_form"):
             st.success(f"Saved {format_hours(hours_slept)} for {log_date.isoformat()}.")
             st.rerun()
 
+st.subheader("Set your sleep target")
+st.write(
+    "An optional daily target you set yourself — the app doesn't calculate "
+    "or recommend this number."
+)
+
+with st.form("sleep_goal_form"):
+    target_value = st.number_input(
+        "Sleep target (hours)",
+        min_value=0.0,
+        max_value=24.0,
+        step=0.5,
+        value=float(sleep_target_hours),
+    )
+
+    submitted_goal = st.form_submit_button("Save target")
+
+    if submitted_goal:
+        save_wellness_goals(
+            water_target_ml=goals["water_target_ml"] if goals else None,
+            sleep_target_hours=target_value if target_value > 0 else None,
+        )
+        st.success("Sleep target saved.")
+        st.rerun()
+
 st.subheader("Saved entries")
 
 sleep_entries = get_all_sleep_entries()
@@ -92,31 +117,4 @@ else:
     if st.button("Delete selected entry"):
         delete_sleep_entry(date_to_delete)
         st.success(f"Deleted the entry for {date_to_delete}.")
-        st.rerun()
-
-st.divider()
-
-st.subheader("Set your sleep target")
-st.write(
-    "An optional daily target you set yourself — the app doesn't calculate "
-    "or recommend this number."
-)
-
-with st.form("sleep_goal_form"):
-    target_value = st.number_input(
-        "Sleep target (hours)",
-        min_value=0.0,
-        max_value=24.0,
-        step=0.5,
-        value=float(sleep_target_hours),
-    )
-
-    submitted_goal = st.form_submit_button("Save target")
-
-    if submitted_goal:
-        save_wellness_goals(
-            water_target_ml=goals["water_target_ml"] if goals else None,
-            sleep_target_hours=target_value if target_value > 0 else None,
-        )
-        st.success("Sleep target saved.")
         st.rerun()
