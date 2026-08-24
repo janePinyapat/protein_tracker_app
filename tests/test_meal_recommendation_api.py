@@ -176,6 +176,29 @@ def test_search_recipes_includes_diet_param_when_given(patched_requests):
     assert stub.calls[0]["params"]["diet"] == "vegetarian"
 
 
+def test_search_recipes_includes_ingredients_param_when_given(patched_requests):
+    stub = patched_requests(StubRequestsModule(responses=[results_response([])]))
+
+    search_recipes(
+        "Breakfast",
+        10.0,
+        30.0,
+        3.0,
+        "test-key",
+        include_ingredients=["chicken", "spinach"],
+    )
+
+    assert stub.calls[0]["params"]["includeIngredients"] == "chicken,spinach"
+
+
+def test_search_recipes_omits_ingredients_param_when_not_given(patched_requests):
+    stub = patched_requests(StubRequestsModule(responses=[results_response([])]))
+
+    search_recipes("Breakfast", 10.0, 30.0, 3.0, "test-key")
+
+    assert "includeIngredients" not in stub.calls[0]["params"]
+
+
 def test_search_recipes_includes_servings_params_when_given(patched_requests):
     stub = patched_requests(StubRequestsModule(responses=[results_response([])]))
 
@@ -391,6 +414,40 @@ def test_fetch_meal_recommendations_passes_servings_and_max_ready_time_through(
     assert all(call["params"]["minServings"] == 3 for call in stub.calls)
     assert all(call["params"]["maxServings"] == 3 for call in stub.calls)
     assert all(call["params"]["maxReadyTime"] == 20 for call in stub.calls)
+
+
+def test_fetch_meal_recommendations_passes_include_ingredients_through(
+    patched_requests,
+):
+    responses = [
+        results_response([make_recipe(1, "Breakfast Recipe", 20.0, 4.0, 300)]),
+        results_response([make_recipe(2, "Lunch Recipe", 28.0, 7.0, 450)]),
+        results_response([make_recipe(3, "Dinner Recipe", 32.0, 8.0, 520)]),
+    ]
+    stub = patched_requests(StubRequestsModule(responses=responses))
+
+    fetch_meal_recommendations(
+        100.0, 20.0, api_key="test-key", include_ingredients=["chicken", "rice"]
+    )
+
+    assert all(
+        call["params"]["includeIngredients"] == "chicken,rice" for call in stub.calls
+    )
+
+
+def test_fetch_meal_recommendations_omits_include_ingredients_when_not_given(
+    patched_requests,
+):
+    responses = [
+        results_response([make_recipe(1, "Breakfast Recipe", 20.0, 4.0, 300)]),
+        results_response([make_recipe(2, "Lunch Recipe", 28.0, 7.0, 450)]),
+        results_response([make_recipe(3, "Dinner Recipe", 32.0, 8.0, 520)]),
+    ]
+    stub = patched_requests(StubRequestsModule(responses=responses))
+
+    fetch_meal_recommendations(100.0, 20.0, api_key="test-key")
+
+    assert all("includeIngredients" not in call["params"] for call in stub.calls)
 
 
 def test_fetch_meal_recommendations_passes_diet_filter_through(patched_requests):

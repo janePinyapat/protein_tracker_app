@@ -25,10 +25,16 @@ recent id, this falls back to allowing a repeat rather than returning
 nothing, and says so in the returned ``notes``.
 
 Callers can also pass ``servings`` (an exact match against Spoonacular's
-``minServings``/``maxServings``) and ``max_ready_time`` (Spoonacular's
-``maxReadyTime``, in minutes) — both apply the same way to all three meals.
-Each returned meal includes ``image_url`` straight from Spoonacular's
-``image`` field, for display only (not re-hosted or downloaded).
+``minServings``/``maxServings``), ``max_ready_time`` (Spoonacular's
+``maxReadyTime``, in minutes), and ``include_ingredients`` (a list of
+ingredient names, e.g. what's already in the fridge, joined into
+Spoonacular's ``includeIngredients``) — all optional, and all apply the
+same way to all three meals. Spoonacular's own docs don't spell out
+whether ``includeIngredients`` requires every listed ingredient to appear
+or just some of them, so listing more than a couple narrows results more
+than it might seem like it should. Each returned meal includes
+``image_url`` straight from Spoonacular's ``image`` field, for display
+only (not re-hosted or downloaded).
 """
 
 import os
@@ -175,6 +181,7 @@ def search_recipes(
     diet=None,
     servings=None,
     max_ready_time=None,
+    include_ingredients=None,
     offset=0,
     number=CANDIDATES_PER_MEAL,
 ):
@@ -183,8 +190,12 @@ def search_recipes(
     ``servings`` filters to recipes yielding exactly that many servings
     (Spoonacular's ``minServings``/``maxServings`` set to the same value).
     ``max_ready_time`` filters to recipes ready within that many minutes
-    (Spoonacular's ``maxReadyTime``). Both are omitted from the request
-    when not given, applying no filter.
+    (Spoonacular's ``maxReadyTime``). ``include_ingredients`` is a list of
+    ingredient names to steer results toward (Spoonacular's own
+    ``includeIngredients``, comma-joined) — e.g. what's already in the
+    fridge. All three are omitted from the request when not given, applying
+    no filter (Spoonacular then picks automatically, same as before this
+    option existed).
     """
     params = {
         "type": MEAL_TYPE_TO_SPOONACULAR_TYPE[meal_type],
@@ -202,6 +213,8 @@ def search_recipes(
         params["maxServings"] = servings
     if max_ready_time:
         params["maxReadyTime"] = max_ready_time
+    if include_ingredients:
+        params["includeIngredients"] = ",".join(include_ingredients)
 
     payload = _get(f"{BASE_URL}/complexSearch", params, api_key)
     return payload.get("results", [])
@@ -218,6 +231,7 @@ def find_candidate(
     used_ids,
     servings=None,
     max_ready_time=None,
+    include_ingredients=None,
 ):
     """Find a recipe for one meal, preferring one outside ``exclude_ids``.
 
@@ -241,6 +255,7 @@ def find_candidate(
             diet=diet,
             servings=servings,
             max_ready_time=max_ready_time,
+            include_ingredients=include_ingredients,
             offset=offset,
         )
         if offset == 0:
@@ -280,6 +295,7 @@ def fetch_meal_recommendations(
     api_key=None,
     servings=None,
     max_ready_time=None,
+    include_ingredients=None,
 ):
     """Find one Spoonacular recipe each for breakfast, lunch, and dinner,
     sized to a share of today's remaining protein/fiber target.
@@ -288,8 +304,10 @@ def fetch_meal_recommendations(
     internally to Spoonacular's ``diet`` filter, so results are excluded by
     Spoonacular itself rather than fetched and then discarded.
     ``exclude_recipe_ids`` are recipe ids to steer away from repeating (see
-    ``find_candidate``). ``servings`` and ``max_ready_time`` apply the same
-    way to all three meals (see ``search_recipes``).
+    ``find_candidate``). ``servings``, ``max_ready_time``, and
+    ``include_ingredients`` apply the same way to all three meals (see
+    ``search_recipes``) — all optional, and each is simply omitted from the
+    Spoonacular request when not given.
 
     Returns ``{"meals": [...], "notes": ...}``.
     """
@@ -326,6 +344,7 @@ def fetch_meal_recommendations(
             used_ids,
             servings=servings,
             max_ready_time=max_ready_time,
+            include_ingredients=include_ingredients,
         )
         if pick is None:
             continue

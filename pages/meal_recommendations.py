@@ -132,6 +132,21 @@ else:
             help="0 means no limit.",
         )
 
+    fridge_input = st.text_input(
+        "What's already in your fridge? (optional)",
+        placeholder="e.g. chicken, spinach, rice",
+        help=(
+            "Comma-separated. Recipes will be matched to include these "
+            "ingredients where possible — listing more than 1-3 narrows "
+            "results a lot, since a recipe needs to use what you list. "
+            "Leave blank to let Spoonacular pick automatically, same as "
+            "before."
+        ),
+    )
+    fridge_ingredients = [
+        item.strip() for item in fridge_input.split(",") if item.strip()
+    ]
+
     button_label = (
         "Refresh today's meal ideas" if not cached.empty else "Get today's meal ideas"
     )
@@ -155,6 +170,7 @@ else:
                     api_key=get_api_key(st.secrets),
                     servings=desired_servings,
                     max_ready_time=max_cook_minutes if max_cook_minutes > 0 else None,
+                    include_ingredients=fridge_ingredients or None,
                 )
                 meals_to_save = [
                     {
