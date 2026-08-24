@@ -124,12 +124,16 @@ def extract_nutrient(nutrients, name):
 
 
 def describe_recipe(recipe):
-    """Build a short 'ready in N min · serves M' caption for a recipe."""
+    """Build a short 'ready in N min' caption for a recipe.
+
+    Deliberately omits the recipe's serving count — Spoonacular's protein/
+    fiber/calorie figures are already per serving (see fetch_meal_
+    recommendations' docstring), so showing "serves N" next to them read as
+    if the numbers needed dividing by N, which they don't.
+    """
     parts = []
     if recipe.get("readyInMinutes"):
         parts.append(f"Ready in {recipe['readyInMinutes']} min")
-    if recipe.get("servings"):
-        parts.append(f"serves {recipe['servings']}")
     return " · ".join(parts) if parts else None
 
 

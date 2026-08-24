@@ -120,9 +120,16 @@ def test_extract_nutrient_handles_empty_list():
     assert extract_nutrient([], "Protein") is None
 
 
-def test_describe_recipe_combines_time_and_servings():
+def test_describe_recipe_shows_ready_time_only():
     description = describe_recipe({"readyInMinutes": 30, "servings": 4})
-    assert description == "Ready in 30 min · serves 4"
+    assert description == "Ready in 30 min"
+
+
+def test_describe_recipe_omits_servings_to_avoid_confusion():
+    """Protein/fiber/calories are already per serving, so showing the
+    recipe's serving count next to them reads as if they needed dividing."""
+    description = describe_recipe({"servings": 4})
+    assert description is None
 
 
 def test_describe_recipe_handles_missing_fields():
@@ -362,7 +369,7 @@ def test_fetch_meal_recommendations_builds_three_meals(patched_requests):
     assert payload["meals"][0]["estimated_fiber_grams"] == 4.0
     assert payload["meals"][0]["estimated_calories"] == 300
     assert payload["meals"][0]["source_url"] == "https://example.com/1"
-    assert payload["meals"][0]["description"] == "Ready in 20 min · serves 2"
+    assert payload["meals"][0]["description"] == "Ready in 20 min"
     assert payload["meals"][0]["image_url"] == "https://img.spoonacular.com/recipes/example.jpg"
     assert payload["notes"] == ""
 
