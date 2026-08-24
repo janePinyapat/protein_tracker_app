@@ -186,10 +186,7 @@ else:
     cached = get_meal_recommendations(today_iso)
 
     if not cached.empty:
-        st.caption(
-            f"Generated at {cached.iloc[0]['created_at']} based on your "
-            "remaining target at that time — click refresh above for new ideas."
-        )
+        st.caption("Click refresh above for new ideas.")
 
         for _, meal in cached.iterrows():
             with st.container(border=True):
