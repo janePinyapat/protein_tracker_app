@@ -47,6 +47,7 @@ EMPTY_PREFILL = {
     "fiber_grams": 0.0,
     "calories": 0.0,
     "meal_type": None,
+    "tags": [],
 }
 
 ONE_DAY_SECONDS = 24 * 60 * 60
@@ -98,28 +99,46 @@ def filter_food_entries(
 
 
 def prefill_from_lookup(parsed_food, portion_grams):
-    """Copy scaled lookup numbers into the entry form."""
+    """Copy scaled lookup numbers into the entry form.
+
+    Also pre-computes the automatic labels for this food (from its
+    description and macros) so they show up immediately — the save step
+    always applies them regardless, this just makes that visible sooner.
+    """
     scaled = scale_to_portion(parsed_food, portion_grams)
+    description = scaled["description"] or ""
+    protein_grams = float(scaled.get("protein_grams") or 0.0)
+    fiber_grams = float(scaled.get("fiber_grams") or 0.0)
 
     st.session_state.prefill = {
-        "description": scaled["description"] or "",
-        "protein_grams": float(scaled.get("protein_grams") or 0.0),
+        "description": description,
+        "protein_grams": protein_grams,
         "carbs_grams": float(scaled.get("carbs_grams") or 0.0),
         "fat_grams": float(scaled.get("fat_grams") or 0.0),
-        "fiber_grams": float(scaled.get("fiber_grams") or 0.0),
+        "fiber_grams": fiber_grams,
         "calories": float(scaled.get("calories") or 0.0),
+        "tags": suggest_tags_from_entry(description, protein_grams, fiber_grams),
     }
 
 
 def prefill_from_photo_item(item):
-    """Copy one AI-detected photo item into the entry form."""
+    """Copy one AI-detected photo item into the entry form.
+
+    Also pre-computes the automatic labels for this item (from its
+    description and macros) so they show up immediately — the save step
+    always applies them regardless, this just makes that visible sooner.
+    """
+    protein_grams = float(item.protein_grams or 0.0)
+    fiber_grams = float(item.fiber_grams or 0.0)
+
     st.session_state.prefill = {
         "description": item.description,
-        "protein_grams": float(item.protein_grams or 0.0),
+        "protein_grams": protein_grams,
         "carbs_grams": float(item.carbs_grams or 0.0),
         "fat_grams": float(item.fat_grams or 0.0),
-        "fiber_grams": float(item.fiber_grams or 0.0),
+        "fiber_grams": fiber_grams,
         "calories": float(item.calories or 0.0),
+        "tags": suggest_tags_from_entry(item.description, protein_grams, fiber_grams),
     }
 
 
@@ -359,16 +378,28 @@ with st.form("log_food_form", clear_on_submit=False):
         profile["purposes"] if profile else None,
     )
 
+    automatic_tags = prefill.get("tags") or []
+    if automatic_tags:
+        st.markdown(f"**Automatic labels:** {', '.join(automatic_tags)}")
+        st.caption(
+            "Always included, based on the description/macros above (from "
+            "the lookup or photo you used) — recalculated fresh from "
+            "whatever you actually save, so it updates if you change the "
+            "numbers below before saving."
+        )
+    else:
+        st.caption(
+            "Automatic labels (e.g. \"High protein\" at 20g+, \"Dairy\" for "
+            "yogurt/cheese in the description) are always added based on "
+            "what you enter above — you'll see exactly which ones after "
+            "saving."
+        )
+
     selected_tags = st.multiselect(
-        "Your labels (optional)",
+        "Add more labels (optional)",
         options=build_tag_options(get_saved_tags(), priority_tags=priority_tags),
         help=TAG_HELP,
         accept_new_options=True,
-    )
-    st.caption(
-        "A few labels are also added automatically from what you enter above "
-        "(e.g. \"High protein\" at 20g+, \"Dairy\" for yogurt/cheese in the "
-        "description) — you'll see exactly which ones after saving."
     )
 
     submitted = st.form_submit_button("Save entry")
