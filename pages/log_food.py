@@ -381,12 +381,6 @@ with st.form("log_food_form", clear_on_submit=False):
     automatic_tags = prefill.get("tags") or []
     if automatic_tags:
         st.markdown(f"**Automatic labels:** {', '.join(automatic_tags)}")
-        st.caption(
-            "Always included, based on the description/macros above (from "
-            "the lookup or photo you used) — recalculated fresh from "
-            "whatever you actually save, so it updates if you change the "
-            "numbers below before saving."
-        )
     else:
         st.caption(
             "Automatic labels (e.g. \"High protein\" at 20g+, \"Dairy\" for "
