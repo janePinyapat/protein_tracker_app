@@ -7,8 +7,7 @@ from user_profile import DIET_TYPES, PURPOSES, save_profile_and_targets
 st.title("Welcome")
 st.caption(
     "Built for women's nutrition, hydration, sleep, and recovery — "
-    "protein, fiber, and water targets use guidelines published for women "
-    "wherever the source differentiates by sex."
+    "protein, fiber, and water targets use guidelines."
 )
 st.write(
     "Before you start logging, tell us a bit about yourself. Diet type and "
