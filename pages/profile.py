@@ -4,8 +4,6 @@ import streamlit as st
 from database import get_protein_goals, get_user_profile, get_wellness_goals
 from nutrition_targets import (
     BMI_SOURCE_NOTE,
-    SOURCES_NOTE,
-    WATER_SOURCE_NOTE,
     calculate_bmi,
     convert_to_cm,
     convert_to_kg,
@@ -19,16 +17,6 @@ st.title("Profile")
 st.caption(
     "Built for women's nutrition, hydration, sleep, and recovery — "
     "protein, fiber, and water targets use guidelines."
-)
-st.write(
-    "Your diet type and purpose affect which labels are suggested first "
-    "when you log food — nothing is hidden. If you add your weight, the "
-    "app also suggests Rest day / Training day protein and fiber targets, "
-    "and a daily water target, calculated from published guidelines (not a "
-    "personalized medical recommendation). Adding your height too shows "
-    "your BMI as general context. Saving here updates your daily targets; "
-    "you can still fine-tune protein/fiber on the Meal Recommendations page "
-    "and water on the Log Water page."
 )
 
 profile = get_user_profile()
@@ -319,6 +307,3 @@ if not goals.empty:
     )
 else:
     st.info("Add your weight above to get suggested protein and fiber targets.")
-
-st.caption(SOURCES_NOTE)
-st.caption(WATER_SOURCE_NOTE)

@@ -103,12 +103,7 @@ SOURCES_NOTE = (
 
 BMI_SOURCE_NOTE = (
     "BMI uses the World Health Organization's standard adult classification "
-    "(weight in kg divided by height in m, squared) — the same scale for "
-    "everyone, since the WHO doesn't publish a separate one for women. It's "
-    "a general population screening measure, not a diagnosis — it doesn't "
-    "account for muscle mass, bone density, or where the body carries "
-    "weight, so it can read misleadingly high for muscular or very active "
-    "people. Shown for general context only."
+    "(weight in kg divided by height in m, squared)"
 )
 
 WATER_ML_PER_KG_DAY = 30
