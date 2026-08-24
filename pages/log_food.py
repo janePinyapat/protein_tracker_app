@@ -207,7 +207,9 @@ with st.expander("Log food from a photo (AI-assisted)"):
         "Always double-check against the food itself."
     )
 
-with st.expander("Look up nutrition data (Swedish Food Agency database)"):
+with st.expander(
+    "Look up nutrition data (Swedish Food Agency database)", expanded=True
+):
     st.caption(
         "Search Livsmedelsverkets Livsmedelsdatabasen (the Swedish National "
         "Food Agency's food composition database) instead of typing macros "
@@ -279,6 +281,23 @@ with st.expander("Look up nutrition data (Swedish Food Agency database)"):
                     st.metric(label, "—" if value is None else f"{value:.0f} {unit}")
 
             st.caption(f"Values shown for a {portion_grams:.0f} g portion.")
+
+            lookup_suggested_tags = suggest_tags_from_entry(
+                preview.get("description"),
+                preview.get("protein_grams") or 0.0,
+                preview.get("fiber_grams") or 0.0,
+            )
+            if lookup_suggested_tags:
+                st.caption(
+                    "Labels that would be added automatically: "
+                    f"{', '.join(lookup_suggested_tags)} (more may be added "
+                    "below based on meal type or protein source)."
+                )
+            else:
+                st.caption(
+                    "No automatic labels for this food yet — you can still "
+                    "add your own in the form below."
+                )
 
             if st.button("Use these numbers"):
                 prefill_from_lookup(combined_food, portion_grams)
